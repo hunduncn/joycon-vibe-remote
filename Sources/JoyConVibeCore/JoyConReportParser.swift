@@ -27,7 +27,7 @@ public struct JoyConReportParser: Sendable {
             // frame can turn reply bytes into phantom button presses at launch.
             return JoyConDecodedReport(spiReply: reply)
         case 0x30:
-            guard let frame = parseStandardFrame(payload: payload, includeIMU: true) else { return nil }
+            guard let frame = parseStandardFrame(payload: payload) else { return nil }
             return JoyConDecodedReport(frame: frame)
         default:
             return nil
@@ -67,10 +67,7 @@ public struct JoyConReportParser: Sendable {
         return bytes[...]
     }
 
-    private func parseStandardFrame(
-        payload: ArraySlice<UInt8>,
-        includeIMU: Bool
-    ) -> JoyConInputFrame? {
+    private func parseStandardFrame(payload: ArraySlice<UInt8>) -> JoyConInputFrame? {
         let data = Array(payload)
         guard data.count >= 11 else { return nil }
 
@@ -94,7 +91,7 @@ public struct JoyConReportParser: Sendable {
         let stick = normalizedStick(rawStick)
 
         var gyroSamples: [GyroSample] = []
-        if includeIMU, data.count >= 48 {
+        if data.count >= 48 {
             for offset in stride(from: 12, through: 36, by: 12) {
                 let x = Self.int16(data, offset)
                 let y = Self.int16(data, offset + 2)

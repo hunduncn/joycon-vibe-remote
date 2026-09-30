@@ -6,6 +6,11 @@ public enum GyroCalibrationState: Equatable, Sendable {
 }
 
 public struct GyroPointerEngine: Sendable {
+    // Keep isolated tremor attenuation while letting a deliberate low-speed
+    // gesture become responsive within about 25 ms.
+    private static let lowSpeedSmoothingAlpha =
+        1 - pow(0.5, JoyConIMUTiming.sampleInterval / 0.025)
+
     private let targetCalibrationSamples = 160
     private var calibrationSum = Vector3.zero
     private var calibrationCount = 0
@@ -77,12 +82,9 @@ public struct GyroPointerEngine: Sendable {
             resetMotion()
         }
 
-        let adjusted = Vector3(
-            x: raw.x - runtimeBias.x,
-            y: raw.y - runtimeBias.y,
-            z: raw.z - runtimeBias.z
+        let canonicalRate = JoyConIMUCoordinateSpace.angularVelocity(
+            from: raw - runtimeBias
         )
-        let canonicalRate = JoyConIMUCoordinateSpace.angularVelocity(from: adjusted)
         let gravity = gravityEstimator.update(
             angularVelocity: canonicalRate,
             acceleration: canonicalAcceleration
@@ -108,8 +110,7 @@ public struct GyroPointerEngine: Sendable {
             // The clutch is also an orientation recenter boundary. The fused estimate
             // may still reflect a fast inactive re-grip, while the current
             // accelerometer gives the only observable screen-up reference.
-            clutchGravity = scaled(
-                canonicalAcceleration,
+            clutchGravity = canonicalAcceleration.scaled(
                 by: -1 / canonicalAcceleration.magnitude
             )
         } else {
@@ -152,9 +153,8 @@ public struct GyroPointerEngine: Sendable {
             / degreesForFullWidth
             * max(0.1, settings.sensitivity)
             * precision
-        let sampleInterval = 1.0 / 200.0
-        var dx = horizontalRate * pixelsPerDegree * sampleInterval
-        var dy = verticalRate * pixelsPerDegree * sampleInterval
+        var dx = horizontalRate * pixelsPerDegree * JoyConIMUTiming.sampleInterval
+        var dy = verticalRate * pixelsPerDegree * JoyConIMUTiming.sampleInterval
         let deltaMagnitude = hypot(dx, dy)
         let maximumDeltaPerSample = 80.0
         if deltaMagnitude > maximumDeltaPerSample {
@@ -167,45 +167,41 @@ public struct GyroPointerEngine: Sendable {
         return PointerDelta(dx: dx, dy: dy)
     }
 
-    private func dot(_ lhs: Vector3, _ rhs: Vector3) -> Double {
-        lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
-    }
-
     private mutating func updateAnchoredRay(
         gravity: Vector3,
         angularVelocity: Vector3
     ) -> (Double, Double) {
         let forward = Vector3(x: 0, y: 0, z: 1)
         if anchorRight == nil || anchorUp == nil {
-            let gravityRight = cross(forward, gravity)
+            let gravityRight = forward.cross(gravity)
             // Pointing the Joy-Con face exactly along gravity has no physical
             // screen-right reference. Use its local right axis only for that
             // degenerate pose; every ordinary grip uses gravity compensation.
             let right = gravityRight.magnitude > 0.12
-                ? normalized(gravityRight)
+                ? gravityRight.normalized
                 : Vector3(x: 1, y: 0, z: 0)
             anchorRight = right
-            anchorUp = normalized(cross(right, forward))
+            anchorUp = right.cross(forward).normalized
             rayOrientation = .identity
             previousRayAngles = (0, 0)
         }
 
         rayOrientation.integrate(
             angularVelocityDegreesPerSecond: angularVelocity,
-            sampleInterval: 1.0 / 200.0
+            sampleInterval: JoyConIMUTiming.sampleInterval
         )
         guard let anchorRight, let anchorUp else { return (0, 0) }
-        let ray = normalized(rayOrientation.rotated(forward))
-        let horizontalAngle = atan2(dot(ray, anchorRight), dot(ray, forward))
+        let ray = rayOrientation.rotated(forward).normalized
+        let horizontalAngle = atan2(ray.dot(anchorRight), ray.dot(forward))
         let verticalAngle = atan2(
-            dot(ray, anchorUp),
-            hypot(dot(ray, anchorRight), dot(ray, forward))
+            ray.dot(anchorUp),
+            hypot(ray.dot(anchorRight), ray.dot(forward))
         )
         let horizontalDelta = wrappedAngle(horizontalAngle - previousRayAngles.horizontal)
         let verticalDelta = wrappedAngle(verticalAngle - previousRayAngles.vertical)
         previousRayAngles = (horizontalAngle, verticalAngle)
 
-        let radiansToDegreesPerSecond = 180 / Double.pi * 200
+        let radiansToDegreesPerSecond = 180 / Double.pi * JoyConIMUTiming.sampleRate
         return (
             horizontalDelta * radiansToDegreesPerSecond,
             verticalDelta * radiansToDegreesPerSecond
@@ -238,14 +234,6 @@ public struct GyroPointerEngine: Sendable {
         return (horizontal * minorScale, vertical)
     }
 
-    private func cross(_ lhs: Vector3, _ rhs: Vector3) -> Vector3 {
-        Vector3(
-            x: lhs.y * rhs.z - lhs.z * rhs.y,
-            y: lhs.z * rhs.x - lhs.x * rhs.z,
-            z: lhs.x * rhs.y - lhs.y * rhs.x
-        )
-    }
-
     private func wrappedAngle(_ angle: Double) -> Double {
         var result = angle
         while result > .pi { result -= 2 * .pi }
@@ -253,41 +241,22 @@ public struct GyroPointerEngine: Sendable {
         return result
     }
 
-    private func normalized(_ vector: Vector3) -> Vector3 {
-        let magnitude = vector.magnitude
-        return magnitude > 0.001 ? scaled(vector, by: 1 / magnitude) : .zero
-    }
-
-    private func scaled(_ vector: Vector3, by scalar: Double) -> Vector3 {
-        Vector3(x: vector.x * scalar, y: vector.y * scalar, z: vector.z * scalar)
-    }
-
     private mutating func collectIdleBiasCandidate(
         rawAngularVelocity: Vector3,
         canonicalAcceleration: Vector3
     ) {
-        let residual = Vector3(
-            x: rawAngularVelocity.x - runtimeBias.x,
-            y: rawAngularVelocity.y - runtimeBias.y,
-            z: rawAngularVelocity.z - runtimeBias.z
-        )
+        let residual = rawAngularVelocity - runtimeBias
         let accelerationMagnitude = canonicalAcceleration.magnitude
         guard residual.magnitude < 3, accelerationMagnitude > 0.001 else {
             clearIdleBiasCandidate()
             return
         }
 
-        let accelerationDirection = scaled(
-            canonicalAcceleration,
+        let accelerationDirection = canonicalAcceleration.scaled(
             by: 1 / accelerationMagnitude
         )
         if let previous = previousIdleAccelerationDirection {
-            let directionChange = Vector3(
-                x: accelerationDirection.x - previous.x,
-                y: accelerationDirection.y - previous.y,
-                z: accelerationDirection.z - previous.z
-            )
-            guard directionChange.magnitude < 0.02 else {
+            guard (accelerationDirection - previous).magnitude < 0.02 else {
                 clearIdleBiasCandidate()
                 previousIdleAccelerationDirection = accelerationDirection
                 return
@@ -367,9 +336,7 @@ public struct GyroPointerEngine: Sendable {
             isSmoothingLowSpeed = true
         }
 
-        // Keep isolated tremor attenuation while letting a deliberate
-        // low-speed gesture become responsive within about 25 ms.
-        let fullSmoothingAlpha = 1 - pow(0.5, (1.0 / 200.0) / 0.025)
+        let fullSmoothingAlpha = Self.lowSpeedSmoothingAlpha
         let transitionStart = threshold * 0.20
         let transition = min(
             1,
@@ -455,14 +422,8 @@ private struct RelativeOrientation: Sendable {
 
     func rotated(_ vector: Vector3) -> Vector3 {
         let imaginary = Vector3(x: x, y: y, z: z)
-        let doubledCross = scaled(cross(imaginary, vector), by: 2)
-        return added(
-            vector,
-            added(
-                scaled(doubledCross, by: w),
-                cross(imaginary, doubledCross)
-            )
-        )
+        let doubledCross = imaginary.cross(vector).scaled(by: 2)
+        return vector + (doubledCross.scaled(by: w) + imaginary.cross(doubledCross))
     }
 
     private func multiplied(by rhs: RelativeOrientation) -> RelativeOrientation {
@@ -483,21 +444,5 @@ private struct RelativeOrientation: Sendable {
             y: y / magnitude,
             z: z / magnitude
         )
-    }
-
-    private func cross(_ lhs: Vector3, _ rhs: Vector3) -> Vector3 {
-        Vector3(
-            x: lhs.y * rhs.z - lhs.z * rhs.y,
-            y: lhs.z * rhs.x - lhs.x * rhs.z,
-            z: lhs.x * rhs.y - lhs.y * rhs.x
-        )
-    }
-
-    private func scaled(_ vector: Vector3, by scalar: Double) -> Vector3 {
-        Vector3(x: vector.x * scalar, y: vector.y * scalar, z: vector.z * scalar)
-    }
-
-    private func added(_ lhs: Vector3, _ rhs: Vector3) -> Vector3 {
-        Vector3(x: lhs.x + rhs.x, y: lhs.y + rhs.y, z: lhs.z + rhs.z)
     }
 }

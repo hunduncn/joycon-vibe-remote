@@ -16,7 +16,7 @@ public enum PointerMotionPacingPlan {
     /// burst of three cursor jumps followed by a visible gap.
     public static func steps(
         for deltas: [PointerDelta],
-        sampleInterval: TimeInterval = 1.0 / 200.0
+        sampleInterval: TimeInterval = JoyConIMUTiming.sampleInterval
     ) -> [ScheduledPointerDelta] {
         deltas.enumerated().map { index, delta in
             ScheduledPointerDelta(
