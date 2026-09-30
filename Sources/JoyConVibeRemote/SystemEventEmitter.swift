@@ -7,6 +7,8 @@ final class SystemEventEmitter {
     private var leftMouseDown = false
     private var rightMouseDown = false
     private var heldModifiers = Set<RemoteModifier>()
+    private var clickSequence = MouseClickSequence()
+    private var scrollRemainder = ScrollRemainderAccumulator()
 
     var isAccessibilityTrusted: Bool {
         AXIsProcessTrusted()
@@ -93,6 +95,7 @@ final class SystemEventEmitter {
         for modifier in RemoteModifier.allCases where heldModifiers.contains(modifier) {
             setModifier(modifier, isDown: false)
         }
+        scrollRemainder.reset()
     }
 
     func openAccessibilitySettings() {
@@ -221,25 +224,36 @@ final class SystemEventEmitter {
         case (.right, false): type = .rightMouseUp
         }
 
-        CGEvent(
+        let clickCount = isDown
+            ? clickSequence.registerPress(
+                of: button,
+                at: ProcessInfo.processInfo.systemUptime,
+                x: current.x,
+                y: current.y,
+                multiClickInterval: NSEvent.doubleClickInterval
+            )
+            : clickSequence.clickCount(for: button)
+        let event = CGEvent(
             mouseEventSource: source,
             mouseType: type,
             mouseCursorPosition: current,
             mouseButton: cgButton
-        )?.post(tap: .cghidEventTap)
+        )
+        event?.setIntegerValueField(.mouseEventClickState, value: Int64(clickCount))
+        event?.post(tap: .cghidEventTap)
 
         if button == .left { leftMouseDown = isDown }
         if button == .right { rightMouseDown = isDown }
     }
 
     private func scroll(points: Double) {
-        let rounded = Int32(max(Double(Int32.min), min(Double(Int32.max), points.rounded())))
-        guard rounded != 0 else { return }
+        let wholePoints = scrollRemainder.wholePoints(adding: points)
+        guard wholePoints != 0 else { return }
         CGEvent(
             scrollWheelEvent2Source: nil,
             units: .pixel,
             wheelCount: 1,
-            wheel1: rounded,
+            wheel1: wholePoints,
             wheel2: 0,
             wheel3: 0
         )?.post(tap: .cghidEventTap)
