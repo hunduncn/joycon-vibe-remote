@@ -9,6 +9,7 @@ final class SystemEventEmitter {
     private var heldModifiers = Set<RemoteModifier>()
     private var clickSequence = MouseClickSequence()
     private var scrollRemainder = ScrollRemainderAccumulator()
+    private var movementPlanner = MouseMovementPlanner()
 
     var isAccessibilityTrusted: Bool {
         AXIsProcessTrusted()
@@ -49,10 +50,11 @@ final class SystemEventEmitter {
         else { return }
 
         let current = currentEvent.location
-        let descriptor = MouseMovementEventDescriptor(
+        let descriptor = movementPlanner.plan(
             currentX: current.x,
             currentY: current.y,
-            delta: delta
+            delta: delta,
+            screens: activeScreenBounds
         )
         let destination = CGPoint(
             x: descriptor.destinationX,
@@ -96,6 +98,23 @@ final class SystemEventEmitter {
             setModifier(modifier, isDown: false)
         }
         scrollRemainder.reset()
+        movementPlanner.reset()
+    }
+
+    private var activeScreenBounds: [ScreenBounds] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).map { display in
+            let bounds = CGDisplayBounds(display)
+            return ScreenBounds(
+                x: bounds.origin.x,
+                y: bounds.origin.y,
+                width: bounds.width,
+                height: bounds.height
+            )
+        }
     }
 
     func openAccessibilitySettings() {
