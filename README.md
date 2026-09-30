@@ -13,6 +13,35 @@ Codex、Claude Code 和普通 macOS 应用。
 > Joy-Con 本身不带麦克风。R 键可以触发 macOS 系统听写，但语音输入需要
 > Mac 内置麦克风、有线麦克风或无线麦克风。
 
+## 下载安装
+
+不需要 Xcode，也不需要编译：
+
+1. 打开 [Releases 页面](https://github.com/hunduncn/joycon-vibe-remote/releases/latest)，下载最新的
+   `Joy-Con-Vibe-Remote-x.y.z.dmg`；
+2. 双击打开 DMG，把 `Joy-Con Vibe Remote` 拖进「应用程序」；
+3. 从「应用程序」启动 App。
+
+> [!NOTE]
+> 安装包仅支持 **Apple 芯片（M 系列）的 Mac**，需要 macOS 14 或更高版本。
+
+### 首次打开被系统拦截
+
+安装包没有经过 Apple 公证，第一次打开时 macOS 会提示“无法验证开发者”。
+这是未公证 App 的正常现象，按下面步骤放行一次即可，之后不会再提示：
+
+1. 双击 App，在拦截提示中点「完成」；
+2. 打开「系统设置 → 隐私与安全性」，在页面下方找到 Joy-Con Vibe Remote，点「仍要打开」；
+3. 在弹出的确认框中再次点「打开」，按提示输入密码。
+
+熟悉终端的话，也可以在拖入「应用程序」后执行下面的命令，直接移除下载隔离标记：
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
+```
+
+打开 App 之后的配对、授权和校准步骤见下方[首次使用](#首次使用)。
+
 ## 网页使用说明
 
 [在线打开网页版说明书](https://hunduncn.github.io/joycon-vibe-remote/manual/) · [查看网页源码](docs/manual/index.html)
@@ -64,13 +93,28 @@ ZR + SL 的精准体感组合优先于 SL Agent 副层，不会误触发副层�
 
 ## 系统要求
 
-- macOS 14 或更高版本；
+- macOS 14 或更高版本；下载的安装包仅支持 Apple 芯片的 Mac，Intel 机型请从源码构建；
 - 原版 Nintendo Switch Joy-Con (R)；
 - 蓝牙连接；
 - “辅助功能”权限；若系统阻止 HID 输入，再授予“输入监控”权限；
 - 使用语音输入时，需要额外准备麦克风。
 
-## 构建与安装
+## 首次使用
+
+1. 在 macOS「系统设置 → 蓝牙」中配对 `Joy-Con (R)`；
+2. 按照提示授予 App“辅助功能”权限；
+3. 连接成功后把 Joy-Con 静置约一秒，等待零点校准完成；
+4. 按住 ZR，轻轻转动手腕开始控制光标。
+
+授权后仍无响应时，可点击错误提示中的「重新连接」，或关闭再开启控制台右上角的遥控开关。
+打开控制台时也会重试此前打开失败的设备连接。如果 macOS 提示必须退出并重新打开，
+请先退出 App，再从安装位置启动。
+
+“登录时启动”若等待系统批准，控制台会显示提示；取消勾选会撤销待批准的注册。
+
+## 从源码构建
+
+普通用户直接[下载安装](#下载安装)即可，本节面向开发者。
 
 从源码构建需要 **完整 Xcode 16 或更新版本（包含 Swift 6+ 和 macOS SDK）**。
 请安装与本机 macOS 兼容的 Xcode，并先打开一次完成组件安装及许可确认。
@@ -95,13 +139,6 @@ cd joycon-vibe-remote
 open "/Applications/Joy-Con Vibe Remote.app"
 ```
 
-首次启动后：
-
-1. 在 macOS「系统设置 → 蓝牙」中配对 `Joy-Con (R)`；
-2. 按照提示授予 App“辅助功能”权限；
-3. 连接成功后把 Joy-Con 静置约一秒，等待零点校准完成；
-4. 按住 ZR，轻轻转动手腕开始控制光标。
-
 构建脚本会生成并安装：
 
 ```text
@@ -120,11 +157,13 @@ open "$HOME/Applications/Joy-Con Vibe Remote.app"
 `.joycon-vibe-remote-install.*` 隐藏目录中，终端会显示具体路径。确认新版可用后可自行删除备份。
 第三方声明也包含在生成 App 的 `Contents/Resources/THIRD_PARTY_NOTICES.md` 中。
 
-授权后仍无响应时，可点击错误提示中的「重新连接」，或关闭再开启控制台右上角的遥控开关。
-打开控制台时也会重试此前打开失败的设备连接。如果 macOS 提示必须退出并重新打开，
-请先退出 App，再从安装位置启动。
+打包发布用的 DMG 安装包：
 
-“登录时启动”若等待系统批准，控制台会显示提示；取消勾选会撤销待批准的注册。
+```bash
+./scripts/make-dmg.sh
+```
+
+生成的文件位于 `.build/dmg/Joy-Con-Vibe-Remote-<版本号>.dmg`，版本号取自 `Resources/Info.plist`。
 
 ## macOS 听写设置
 
@@ -154,6 +193,7 @@ Tests/                        解析、映射、体感和界面回归测试
 docs/manual/                  响应式网页版说明书
 docs/assets/                  手绘按键图等文档素材
 scripts/build-app.sh          Release 构建与安装脚本
+scripts/make-dmg.sh           DMG 安装包打包脚本
 ```
 
 ## 开发与测试
