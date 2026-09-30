@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: RemoteSettings?
     private var model: AppModel?
     private var statusCancellable: AnyCancellable?
+    private var shownStatusTitle: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
@@ -102,6 +103,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateStatusItem(for status: RemoteStatus) {
+        // Calibration progress changes on every report but keeps one icon.
+        guard status.title != shownStatusTitle else { return }
+        shownStatusTitle = status.title
         let image = NSImage(
             systemSymbolName: status.symbolName,
             accessibilityDescription: status.title

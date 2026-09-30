@@ -2,85 +2,90 @@ import SwiftUI
 import JoyConVibeCore
 
 struct StatusMenuView: View {
-    static let panelWidth: CGFloat = 470
+    static let panelWidth: CGFloat = 420
     static let initialHeight: CGFloat = 360
+    private static let footerHeight: CGFloat = 40
 
     @ObservedObject var model: AppModel
     @ObservedObject var settings: RemoteSettings
     let onPreferredHeightChange: (CGFloat) -> Void
 
-    @State private var tuningExpanded = false
-    @State private var mappingsExpanded = true
+    @State private var tuningExpanded: Bool
+    @State private var mappingsExpanded: Bool
     @State private var panelHeight = Self.initialHeight
 
     init(
         model: AppModel,
         settings: RemoteSettings,
+        tuningExpanded: Bool = false,
+        mappingsExpanded: Bool = true,
         onPreferredHeightChange: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.model = model
         self.settings = settings
         self.onPreferredHeightChange = onPreferredHeightChange
+        _tuningExpanded = State(initialValue: tuningExpanded)
+        _mappingsExpanded = State(initialValue: mappingsExpanded)
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                header
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    header
 
-                if !model.accessibilityTrusted {
-                    permissionNotice
+                    if !model.accessibilityTrusted {
+                        permissionNotice
+                    }
+                    if let error = model.errorMessage {
+                        errorNotice(error)
+                    }
+                    if let message = model.loginItemMessage {
+                        NoticeCard(tint: .orange, systemImage: "clock.badge.exclamationmark", message: message)
+                    }
+
+                    SectionCard(
+                        title: "体感调节",
+                        systemImage: "gyroscope",
+                        isExpanded: $tuningExpanded
+                    ) {
+                        pointerControls
+                    }
+
+                    SectionCard(
+                        title: "按键自定义",
+                        systemImage: "slider.horizontal.3",
+                        isExpanded: $mappingsExpanded,
+                        accessory: {
+                            Button("恢复默认") { settings.resetButtonMappings() }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        }
+                    ) {
+                        mappingGrid
+                    }
                 }
-
-                if let error = model.errorMessage {
-                    errorNotice(error)
-                }
-                if let message = model.loginItemMessage {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-
-                Divider()
-
-                HoverHighlightRow {
-                    Toggle(
-                        "启用 Joy-Con 遥控",
-                        isOn: Binding(
-                            get: { settings.enabled },
-                            set: { model.setRemoteEnabled($0) }
+                .padding(12)
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: PanelContentHeightPreferenceKey.self,
+                            value: geometry.size.height
                         )
-                    )
-                }
-
-                Divider()
-                tuningDisclosure
-                if tuningExpanded {
-                    pointerControls
-                }
-
-                Divider()
-                mappingDisclosure
-                if mappingsExpanded {
-                    mappingGrid
-                }
-                Divider()
-
-                footer
-            }
-            .padding(14)
-            .background {
-                GeometryReader { geometry in
-                    Color.clear.preference(
-                        key: PanelContentHeightPreferenceKey.self,
-                        value: geometry.size.height
-                    )
+                    }
                 }
             }
+
+            Divider()
+            // Pinned outside the scroll view so quitting never needs scrolling.
+            footer
+                .frame(height: Self.footerHeight)
         }
         .frame(width: Self.panelWidth, height: panelHeight)
         .onPreferenceChange(PanelContentHeightPreferenceKey.self) { contentHeight in
-            let preferredHeight = StatusPanelHeightPolicy.height(for: contentHeight)
+            let preferredHeight = StatusPanelHeightPolicy.height(
+                for: contentHeight + Self.footerHeight + 1
+            )
             guard abs(preferredHeight - panelHeight) > 0.5 else { return }
             panelHeight = preferredHeight
             onPreferredHeightChange(preferredHeight)
@@ -90,11 +95,12 @@ struct StatusMenuView: View {
     private var header: some View {
         HStack(spacing: 10) {
             Image(systemName: model.status.symbolName)
-                .font(.system(size: 26))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(statusColor)
-                .frame(width: 32)
+                .frame(width: 36, height: 36)
+                .background(statusColor.opacity(0.14), in: Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(model.status.title)
                     .font(.headline)
                 Text(statusDetail)
@@ -102,7 +108,7 @@ struct StatusMenuView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             if model.batteryLevel > 0 {
                 Label("\(model.batteryLevel * 25)%", systemImage: batterySymbol)
@@ -110,38 +116,43 @@ struct StatusMenuView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Toggle(
+                "启用 Joy-Con 遥控",
+                isOn: Binding(
+                    get: { settings.enabled },
+                    set: { model.setRemoteEnabled($0) }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .help("启用或暂停 Joy-Con 遥控")
         }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
     }
 
     private var permissionNotice: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Label("需要辅助功能权限才能输出鼠标和键盘事件。", systemImage: "lock.trianglebadge.exclamationmark")
-                .font(.caption)
-            Button("授予辅助功能权限") {
-                model.requestAccessibility()
-            }
+        NoticeCard(
+            tint: .orange,
+            systemImage: "lock.trianglebadge.exclamationmark",
+            message: "需要辅助功能权限才能输出鼠标和键盘事件。"
+        ) {
+            Button("授予辅助功能权限") { model.requestAccessibility() }
         }
-        .padding(10)
-        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func errorNotice(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.red)
-            HStack {
-                Button("重新连接") { model.reconnect() }
-                Button("输入监控设置") { model.openInputMonitoringSettings() }
-                Button("蓝牙设置") { model.openBluetoothSettings() }
-            }
+        NoticeCard(tint: .red, systemImage: "exclamationmark.triangle", message: message) {
+            Button("重新连接") { model.reconnect() }
+            Button("输入监控设置") { model.openInputMonitoringSettings() }
+            Button("蓝牙设置") { model.openBluetoothSettings() }
         }
-        .padding(10)
-        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var pointerControls: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 0) {
             TuningSliderRow(
                 title: "整体灵敏度",
                 initialValue: settings.sensitivity,
@@ -190,147 +201,86 @@ struct StatusMenuView: View {
         }
     }
 
-    private var tuningDisclosure: some View {
-        DisclosureHeader(
-            title: "体感调节",
-            systemImage: "gyroscope",
-            isExpanded: tuningExpanded
-        ) {
-            tuningExpanded.toggle()
-        }
-    }
-
-    private var mappingDisclosure: some View {
-        DisclosureHeader(
-            title: "按键自定义",
-            systemImage: "slider.horizontal.3",
-            isExpanded: mappingsExpanded
-        ) {
-            mappingsExpanded.toggle()
-        }
-    }
-
     private var mappingGrid: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text("按键映射")
-                    .font(.caption.weight(.semibold))
-                Spacer()
-                Button("恢复默认") { settings.resetButtonMappings() }
-                    .font(.caption)
-            }
-
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: PanelMetrics.mappingSpacing) {
                 Text("按键")
-                    .frame(width: 62, alignment: .leading)
+                    .frame(width: PanelMetrics.mappingLabelWidth, alignment: .leading)
                 Text("单按")
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("按住 SL 后")
+                Text("按住 SL")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, PanelMetrics.rowPadding)
+            .padding(.bottom, 2)
 
             ForEach(RemoteButtonAction.configurableButtons, id: \.self) { button in
-                HoverHighlightRow {
-                    HStack(spacing: 6) {
-                        Text(button.mappingTitle)
-                            .font(.caption.monospaced().weight(.semibold))
-                            .frame(width: 62, alignment: .leading)
-                        Picker(
-                            "",
-                            selection: Binding(
-                                get: { settings.binding(for: button).primary },
-                                set: { settings.setPrimaryMapping($0, for: button) }
-                            )
-                        ) {
-                            ForEach(RemoteButtonAction.primaryChoices, id: \.self) { action in
-                                Text(action.mappingTitle).tag(action)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Picker(
-                            "",
-                            selection: Binding(
-                                get: { settings.binding(for: button).withSL },
-                                set: { settings.setSLMapping($0, for: button) }
-                            )
-                        ) {
-                            ForEach(RemoteButtonAction.slChoices, id: \.self) { action in
-                                Text(action.mappingTitle).tag(action)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                MappingRow(label: button.mappingTitle) {
+                    ActionMenu(
+                        selection: settings.binding(for: button).primary,
+                        choices: RemoteButtonAction.primaryChoices,
+                        title: \.mappingTitle,
+                        isDimmed: { $0 == .none },
+                        onSelect: { settings.setPrimaryMapping($0, for: button) }
+                    )
+                } withSL: {
+                    ActionMenu(
+                        selection: settings.binding(for: button).withSL,
+                        choices: RemoteButtonAction.slChoices,
+                        title: \.mappingTitle,
+                        isDimmed: { $0 == .usePrimary || $0 == .none },
+                        onSelect: { settings.setSLMapping($0, for: button) }
+                    )
                 }
             }
 
-            HoverHighlightRow {
-                HStack(spacing: 6) {
-                    Text("摇杆上下")
-                        .font(.caption.monospaced().weight(.semibold))
-                        .frame(width: 62, alignment: .leading)
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: { settings.stickVerticalBinding.primary },
-                            set: { settings.setStickVerticalPrimary($0) }
-                        )
-                    ) {
-                        ForEach(RemoteStickVerticalAction.primaryChoices, id: \.self) { action in
-                            Text(action.mappingTitle).tag(action)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: { settings.stickVerticalBinding.withSL },
-                            set: { settings.setStickVerticalSL($0) }
-                        )
-                    ) {
-                        ForEach(RemoteStickVerticalAction.slChoices, id: \.self) { action in
-                            Text(action.mappingTitle).tag(action)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
+            MappingRow(label: "摇杆上下") {
+                ActionMenu(
+                    selection: settings.stickVerticalBinding.primary,
+                    choices: RemoteStickVerticalAction.primaryChoices,
+                    title: \.mappingTitle,
+                    isDimmed: { $0 == .none },
+                    onSelect: { settings.setStickVerticalPrimary($0) }
+                )
+            } withSL: {
+                ActionMenu(
+                    selection: settings.stickVerticalBinding.withSL,
+                    choices: RemoteStickVerticalAction.slChoices,
+                    title: \.mappingTitle,
+                    isDimmed: { $0 == .usePrimary || $0 == .none },
+                    onSelect: { settings.setStickVerticalSL($0) }
+                )
             }
 
-            Text("固定：ZR 开启体感 · ZR + SL 精细体感 · 摇杆左右为 ← →")
+            Text("固定：ZR 体感 · ZR + SL 精准体感 · 摇杆左右 ← →")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, PanelMetrics.rowPadding)
+                .padding(.top, 6)
         }
     }
 
     private var footer: some View {
-        HoverHighlightRow {
-            HStack {
-                Toggle(
-                    "登录时启动",
-                    isOn: Binding(
-                        get: { settings.launchAtLogin },
-                        set: { model.setLaunchAtLogin($0) }
-                    )
+        HStack(spacing: 14) {
+            Toggle(
+                "登录时启动",
+                isOn: Binding(
+                    get: { settings.launchAtLogin },
+                    set: { model.setLaunchAtLogin($0) }
                 )
-                .toggleStyle(.checkbox)
-                .font(.caption)
+            )
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
 
-                Spacer()
-                Button("蓝牙") { model.openBluetoothSettings() }
-                Button("退出") { NSApplication.shared.terminate(nil) }
-            }
+            Spacer()
+            Button("蓝牙设置") { model.openBluetoothSettings() }
+            Button("退出") { NSApplication.shared.terminate(nil) }
         }
+        .buttonStyle(.borderless)
+        .font(.caption)
+        .padding(.horizontal, 16)
     }
 
     private var statusDetail: String {
@@ -376,42 +326,131 @@ enum StatusPanelHeightPolicy {
     }
 }
 
+private enum PanelMetrics {
+    static let rowPadding: CGFloat = 6
+    static let mappingLabelWidth: CGFloat = 66
+    static let mappingSpacing: CGFloat = 8
+}
+
 private struct PanelContentHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
     }
 }
 
-private struct DisclosureHeader: View {
+private struct SectionCard<Accessory: View, Content: View>: View {
     let title: String
     let systemImage: String
-    let isExpanded: Bool
-    let action: () -> Void
+    @Binding var isExpanded: Bool
+    @ViewBuilder let accessory: Accessory
+    @ViewBuilder let content: Content
 
     var body: some View {
-        HoverHighlightRow {
-            Button(action: action) {
-                HStack {
-                    Label(title, systemImage: systemImage)
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Text(isExpanded ? "收起" : "展开")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: systemImage)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18)
+                        Text(title)
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    accessory
+                }
+
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 14, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? "收起\(title)" : "展开\(title)")
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, PanelMetrics.rowPadding)
+
+            if isExpanded {
+                content
+            }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.primary.opacity(0.045),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
     }
 }
 
-private struct HoverHighlightRow<Content: View>: View {
+extension SectionCard where Accessory == EmptyView {
+    init(
+        title: String,
+        systemImage: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(
+            title: title,
+            systemImage: systemImage,
+            isExpanded: isExpanded,
+            accessory: { EmptyView() },
+            content: content
+        )
+    }
+}
+
+private struct NoticeCard<Actions: View>: View {
+    let tint: Color
+    let systemImage: String
+    let message: String
+    @ViewBuilder let actions: Actions
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 7) {
+                Text(message)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    actions
+                }
+                .controlSize(.small)
+            }
+        }
+        .font(.caption)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            tint.opacity(0.10),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+    }
+}
+
+extension NoticeCard where Actions == EmptyView {
+    init(tint: Color, systemImage: String, message: String) {
+        self.init(tint: tint, systemImage: systemImage, message: message) { EmptyView() }
+    }
+}
+
+private struct HoverRow<Content: View>: View {
     @State private var isHovering = false
     private let content: Content
 
@@ -421,19 +460,80 @@ private struct HoverHighlightRow<Content: View>: View {
 
     var body: some View {
         content
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, PanelMetrics.rowPadding)
+            .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(isHovering ? Color.accentColor.opacity(0.12) : Color.clear)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(isHovering ? 0.06 : 0))
             }
             .contentShape(Rectangle())
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.08)) {
-                    isHovering = hovering
+            .onHover { isHovering = $0 }
+    }
+}
+
+private struct MappingRow<Primary: View, WithSL: View>: View {
+    let label: String
+    @ViewBuilder let primary: Primary
+    @ViewBuilder let withSL: WithSL
+
+    var body: some View {
+        HoverRow {
+            HStack(spacing: PanelMetrics.mappingSpacing) {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Color.primary.opacity(0.07),
+                        in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    )
+                    .frame(width: PanelMetrics.mappingLabelWidth, alignment: .leading)
+                primary
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                withSL
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+/// A borderless pop-up that shows only its current value, so a table of
+/// mappings reads as text rather than as a wall of buttons.
+private struct ActionMenu<Action: Hashable>: View {
+    let selection: Action
+    let choices: [Action]
+    let title: (Action) -> String
+    let isDimmed: (Action) -> Bool
+    let onSelect: (Action) -> Void
+
+    var body: some View {
+        Menu {
+            Picker(
+                "",
+                selection: Binding(get: { selection }, set: onSelect)
+            ) {
+                ForEach(choices, id: \.self) { action in
+                    Text(title(action)).tag(action)
                 }
             }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 4) {
+                Text(title(selection))
+                    .font(.callout)
+                    .foregroundStyle(isDimmed(selection) ? .tertiary : .primary)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 }
 
@@ -471,27 +571,33 @@ private struct TuningSliderRow: View {
     }
 
     var body: some View {
-        HoverHighlightRow {
-            HStack {
-                Text(title)
-                    .frame(width: 76, alignment: .leading)
-                Slider(
-                    value: Binding(
-                        get: { value },
-                        set: { newValue in
-                            value = newValue
-                            onValueChanged(newValue)
-                        }
-                    ),
-                    in: range,
-                    step: step,
-                    onEditingChanged: onEditingChanged
-                )
-                valueLabel
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 34, alignment: .trailing)
-            }
+        HStack(spacing: 10) {
+            Text(title)
+                .frame(width: 66, alignment: .leading)
+            // Snapping here instead of passing `step:` keeps the track free of
+            // the dozens of tick marks AppKit draws for a stepped slider.
+            Slider(
+                value: Binding(
+                    get: { value },
+                    set: { newValue in
+                        let snapped = (newValue / step).rounded() * step
+                        guard snapped != value else { return }
+                        value = snapped
+                        onValueChanged(snapped)
+                    }
+                ),
+                in: range,
+                onEditingChanged: onEditingChanged
+            )
+            .controlSize(.small)
+            valueLabel
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .trailing)
         }
+        .font(.callout)
+        .padding(.horizontal, PanelMetrics.rowPadding)
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder
@@ -520,33 +626,36 @@ private struct PointerDirectionRow: View {
     }
 
     var body: some View {
-        HoverHighlightRow {
-            HStack {
-                Toggle(
-                    "水平反向",
-                    isOn: Binding(
-                        get: { invertHorizontal },
-                        set: { newValue in
-                            invertHorizontal = newValue
-                            settings.invertHorizontal = newValue
-                        }
-                    )
+        HStack(spacing: 14) {
+            Toggle(
+                "水平反向",
+                isOn: Binding(
+                    get: { invertHorizontal },
+                    set: { newValue in
+                        invertHorizontal = newValue
+                        settings.invertHorizontal = newValue
+                    }
                 )
-                Toggle(
-                    "垂直反向",
-                    isOn: Binding(
-                        get: { invertVertical },
-                        set: { newValue in
-                            invertVertical = newValue
-                            settings.invertVertical = newValue
-                        }
-                    )
+            )
+            Toggle(
+                "垂直反向",
+                isOn: Binding(
+                    get: { invertVertical },
+                    set: { newValue in
+                        invertVertical = newValue
+                        settings.invertVertical = newValue
+                    }
                 )
-                Spacer()
-                Button("重新校准", action: recalibrate)
-            }
-            .font(.caption)
+            )
+            Spacer()
+            Button("重新校准", action: recalibrate)
+                .buttonStyle(.borderless)
         }
+        .toggleStyle(.checkbox)
+        .controlSize(.small)
+        .font(.caption)
+        .padding(.horizontal, PanelMetrics.rowPadding)
+        .padding(.top, 6)
     }
 }
 

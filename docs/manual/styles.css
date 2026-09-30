@@ -1205,6 +1205,11 @@ kbd {
   background: var(--blue);
 }
 
+.console-top .fake-toggle {
+  flex: none;
+  margin-left: 0;
+}
+
 .fake-toggle::after {
   position: absolute;
   top: 3px;

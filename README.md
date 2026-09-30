@@ -120,7 +120,7 @@ open "$HOME/Applications/Joy-Con Vibe Remote.app"
 `.joycon-vibe-remote-install.*` 隐藏目录中，终端会显示具体路径。确认新版可用后可自行删除备份。
 第三方声明也包含在生成 App 的 `Contents/Resources/THIRD_PARTY_NOTICES.md` 中。
 
-授权后仍无响应时，可点击错误提示中的「重新连接」，或关闭再开启「启用 Joy-Con 遥控」。
+授权后仍无响应时，可点击错误提示中的「重新连接」，或关闭再开启控制台右上角的遥控开关。
 打开控制台时也会重试此前打开失败的设备连接。如果 macOS 提示必须退出并重新打开，
 请先退出 App，再从安装位置启动。
 
