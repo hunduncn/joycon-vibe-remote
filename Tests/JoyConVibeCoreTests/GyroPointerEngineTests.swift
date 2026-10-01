@@ -92,6 +92,31 @@ final class GyroPointerEngineTests: XCTestCase {
         XCTAssertGreaterThan(abs(pitchDelta.dy), 0)
     }
 
+    func testDefaultDirectionFollowsTheControllerAndSettingsMirrorIt() throws {
+        // Screen y grows downward. Verified on a right Joy-Con: with neither
+        // inversion ticked the cursor follows the wrist on both axes.
+        func delta(_ rate: Vector3, _ settings: PointerSettings) throws -> PointerDelta {
+            var engine = calibratedEngine()
+            return try XCTUnwrap(engine.process(
+                sample: rawSample(bodyRate: rate),
+                isActive: true,
+                isPrecision: false,
+                settings: settings
+            ))
+        }
+        let yaw = Vector3(x: 0, y: 60, z: 0)
+        let pitch = Vector3(x: -60, y: 0, z: 0)
+        let mirrored = PointerSettings(invertHorizontal: true, invertVertical: true)
+
+        let yawDefault = try delta(yaw, PointerSettings())
+        let pitchDefault = try delta(pitch, PointerSettings())
+        XCTAssertLessThan(yawDefault.dx, 0)
+        XCTAssertGreaterThan(pitchDefault.dy, 0)
+
+        XCTAssertEqual(try delta(yaw, mirrored).dx, -yawDefault.dx, accuracy: 1e-9)
+        XCTAssertEqual(try delta(pitch, mirrored).dy, -pitchDefault.dy, accuracy: 1e-9)
+    }
+
     func testHorizontalMotionIsIndependentOfControllerTilt() throws {
         var uprightEngine = calibratedEngine()
         let tiltedGravity = normalized(Vector3(x: 0, y: -1, z: -1))

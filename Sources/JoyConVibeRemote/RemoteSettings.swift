@@ -14,6 +14,7 @@ final class RemoteSettings: ObservableObject {
         static let invertHorizontal = "pointer.invertHorizontal"
         static let invertVertical = "pointer.invertVertical"
         static let launchAtLogin = "app.launchAtLogin"
+        static let pointerDirectionVersion = "pointer.directionVersion"
 
         static func buttonMapping(_ button: JoyConButton) -> String {
             "mapping.button.\(button.rawValue)"
@@ -61,6 +62,7 @@ final class RemoteSettings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        Self.migratePointerDirection(in: defaults)
         enabled = defaults.object(forKey: Key.enabled) as? Bool ?? true
         sensitivity = defaults.object(forKey: Key.sensitivity) as? Double ?? 1
         horizontalSensitivityMultiplier = defaults.object(
@@ -96,6 +98,16 @@ final class RemoteSettings: ObservableObject {
                 .flatMap(RemoteStickVerticalAction.init(rawValue:))
                 ?? defaultStick.withSL
         )
+    }
+
+    /// Version 1 mirrored both pointer axes by default, so anyone with a
+    /// stored inversion was correcting that mistake. The corrected default
+    /// makes those values obsolete; clear them once.
+    private static func migratePointerDirection(in defaults: UserDefaults) {
+        guard defaults.integer(forKey: Key.pointerDirectionVersion) < 2 else { return }
+        defaults.removeObject(forKey: Key.invertHorizontal)
+        defaults.removeObject(forKey: Key.invertVertical)
+        defaults.set(2, forKey: Key.pointerDirectionVersion)
     }
 
     func pointerSettings(screenWidthPoints: Double) -> PointerSettings {

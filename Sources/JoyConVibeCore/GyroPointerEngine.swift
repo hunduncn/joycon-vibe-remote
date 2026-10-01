@@ -144,8 +144,11 @@ public struct GyroPointerEngine: Sendable {
         horizontalRate *= accelerationGain
         verticalRate *= accelerationGain
         horizontalRate *= max(0.1, settings.horizontalSensitivityMultiplier)
-        if settings.invertHorizontal { horizontalRate *= -1 }
-        if settings.invertVertical { verticalRate *= -1 }
+        // Ray angles grow opposite to screen coordinates on both axes for the
+        // natural pointing grip, as measured on hardware. The settings invert
+        // that default; every filter above is symmetric in sign.
+        if !settings.invertHorizontal { horizontalRate *= -1 }
+        if !settings.invertVertical { verticalRate *= -1 }
 
         let precision = isPrecision ? settings.precisionMultiplier : 1
         let degreesForFullWidth = 45.0
