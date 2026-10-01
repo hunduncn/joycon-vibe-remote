@@ -6,6 +6,8 @@
     <string>zh_CN</string>
     <key>CFBundleDisplayName</key>
     <string>Joy-Con Vibe Remote</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>JoyConVibeRemote</string>
     <key>CFBundleIdentifier</key>

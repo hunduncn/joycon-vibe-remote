@@ -80,6 +80,7 @@ rm -rf "${bundle_dir}"
 mkdir -p "${contents_dir}/MacOS" "${contents_dir}/Resources"
 ditto "${bin_dir}/JoyConVibeRemote" "${contents_dir}/MacOS/JoyConVibeRemote"
 ditto "${project_dir}/Resources/Info.plist" "${contents_dir}/Info.plist"
+ditto "${project_dir}/Resources/AppIcon.icns" "${contents_dir}/Resources/AppIcon.icns"
 ditto "${project_dir}/THIRD_PARTY_NOTICES.md" "${contents_dir}/Resources/THIRD_PARTY_NOTICES.md"
 chmod 755 "${contents_dir}/MacOS/JoyConVibeRemote"
 # Keep a stable designated requirement across local ad-hoc rebuilds. Without
