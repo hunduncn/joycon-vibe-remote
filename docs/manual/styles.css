@@ -1057,6 +1057,45 @@ kbd {
   cursor: zoom-in;
 }
 
+.left-hand {
+  max-width: 920px;
+  margin: 46px auto 0;
+  padding: 24px 26px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow);
+}
+
+.left-hand h3 {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 26px;
+}
+
+.left-hand p {
+  margin: 10px 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.left-hand table {
+  width: 100%;
+  margin: 14px 0;
+  border-collapse: collapse;
+}
+
+.left-hand th,
+.left-hand td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.left-hand th {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .workflow-section {
   background: var(--paper);
 }

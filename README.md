@@ -84,6 +84,9 @@ The same mapping is listed in English under [Default button mapping](#default-bu
 - **Command symbols:** hold SL and tap Home repeatedly to type `/`, `@`, `$` and `!` in turn.
 - **Idle sleep:** after the controller sits idle for a while (30 minutes by default) it drops its
   Bluetooth link to save battery. Press any button to wake it; it reconnects without recalibrating.
+- **Left-handed use:** the left Joy-Con works just like the right one, with each button in the mirrored
+  position, for left-handed people or anyone who prefers their left hand. With both connected, whichever
+  you press a button on takes over, and each keeps its own button mapping. See [Left Joy-Con](#left-joy-con).
 - **Settings window:** click Open Settings… (打开设置…) in the menu bar panel. Four pages, Status (状态),
   Motion (体感调节), Button Mapping (按键映射) and General (通用), show the connection and calibration,
   tune the feel, and set each button's "press" and "hold SL" actions on a drawing of the controller.
@@ -104,7 +107,9 @@ Click the menu bar icon to see the connection and battery, toggle the remote, an
 
 ### Button Mapping
 
-Set each button's "press" and "hold SL" actions on a drawing of the controller. Pressing a button on the Joy-Con highlights its card and leader line.
+Set each button's "press" and "hold layer key" actions on a drawing of the controller. The Right controller | Left controller
+(右手柄 | 左手柄) switch at the top picks which one you are editing, starting with the one in use. Pressing a button on
+the Joy-Con highlights its card and leader line.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-dark.png">
@@ -157,20 +162,53 @@ Launch at login, idle sleep, permission status, reset to defaults, and version i
 
 The ZR + SL precision combo takes priority over the SL Agent layer, so it never triggers layer actions by accident.
 
+## Left Joy-Con
+
+The left Joy-Con's buttons map to the right controller's buttons in the mirrored position and do the same
+things. Held upright in the left hand, **SR** at the bottom of the rail is the layer key, so "while holding SR"
+below is the same layer as "while holding SL" on the right controller. Motion direction is converted
+automatically; you do not need the invert switches.
+
+| Left Joy-Con | Right equivalent | Normal layer | While holding SR |
+| --- | --- | --- | --- |
+| ZL | ZR | Hold for motion mouse | ZL + SR for precision mode |
+| L | R | Single Fn press (system dictation) | Same as normal |
+| SL | SR | Return / Enter | Shift + Enter (newline without sending) |
+| ← | A | Esc | Control + C (force interrupt) |
+| ↓ | B | Right click | Same as normal |
+| ↑ | X | Delete; hold to repeat | Same as normal |
+| → | Y | Left click; hold to drag | Same as normal |
+| − | + | Command + Tab (switch apps) | Same as normal |
+| Capture | Home | Open the status panel | Tap repeatedly to cycle `/ → @ → $ → !` |
+| Stick press / up-down / left-right | Same as right | Same as right | Same as right |
+
+Each controller keeps its own button mapping; switch between them at the top of the Button Mapping page.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-left-dark.png">
+  <img src="docs/assets/screenshots/settings-mapping-left.png" alt="Button Mapping page with the left controller selected">
+</picture>
+
+**With both connected:** whichever you press a button on takes over. Pick up the other one and press any
+button to switch; the idle one is shown as standby (待机). Bumping a stick or moving a controller never
+switches, and neither does pressing the other controller while you hold the trigger or any other button.
+If the controller in use disconnects or goes to sleep, the other one takes over. Sleep now (立即休眠) puts
+every connected controller to sleep.
+
 ## Requirements
 
 - macOS 14 or later. The downloadable DMG supports Apple silicon only; on Intel Macs, build from source;
-- An original Nintendo Switch Joy-Con (R);
+- An original Nintendo Switch Joy-Con (R) or Joy-Con (L), or both;
 - A Bluetooth connection;
 - The Accessibility permission, plus Input Monitoring if macOS blocks HID input;
 - A microphone if you want voice input.
 
 ## Getting started
 
-1. Pair `Joy-Con (R)` in macOS System Settings → Bluetooth;
+1. Pair `Joy-Con (R)` or `Joy-Con (L)` in macOS System Settings → Bluetooth;
 2. Grant the app the Accessibility permission when prompted;
 3. Once connected, leave the Joy-Con still for about a second while it calibrates its zero point;
-4. Hold ZR and gently turn your wrist to move the cursor.
+4. Hold ZR (ZL on the left controller) and gently turn your wrist to move the cursor.
 
 If nothing happens after granting permissions, click Reconnect (重新连接) in the error message, or turn the
 remote toggle in the panel's top-right corner off and on again. Opening the panel also retries any device

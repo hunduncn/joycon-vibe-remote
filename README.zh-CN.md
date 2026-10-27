@@ -74,6 +74,8 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 - **命令符号：**按住 SL 连点 Home，依次输入 `/`、`@`、`$`、`!`。
 - **闲置休眠：**手柄闲置一段时间（默认 30 分钟）后自动断开蓝牙省电，按任意键即可唤醒并重新连上，
   无需再次校准。
+- **左手也能用：**左手 Joy-Con 和右手 Joy-Con 功能一样，按镜像位置对应，适合左撇子或习惯左手的人；
+  两只同时连着时，谁按键就用谁，按键映射左右各存一套。详见[左手 Joy-Con](#左手-joy-con)。
 - **设置窗口：**菜单栏面板中点「打开设置…」，在「状态」「体感调节」「按键映射」「通用」四页里查看连接与校准、调节手感，
   并对着手柄示意图分别设置每个按键的“单按”和“按住 SL 后”动作；按下手柄上的键，对应设置会自动高亮。
 
@@ -92,7 +94,8 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 
 ### 按键映射
 
-对着手柄示意图设置每个按键的「单按」和「按住 SL」动作。按下手柄上的键，对应的卡片和引导线会高亮。
+对着手柄示意图设置每个按键的「单按」和「按住副层键」动作。顶部的「右手柄 | 左手柄」切换要设置哪一只，
+打开时自动选中正在用的那只。按下手柄上的键，对应的卡片和引导线会高亮。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-dark.png">
@@ -145,20 +148,49 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 
 ZR + SL 的精准体感组合优先于 SL Agent 副层，不会误触发副层按键动作。
 
+## 左手 Joy-Con
+
+左手 Joy-Con 的按键按镜像位置对应右手柄，功能一样。左手竖握时，滑轨下端的 **SR** 是副层键，
+所以下表的"按住 SR 后"相当于右手柄的"按住 SL 后"。体感方向会自动换算，不需要打开反向开关。
+
+| 左手 Joy-Con | 对应右手柄 | 普通层 | 按住 SR 后 |
+| --- | --- | --- | --- |
+| ZL | ZR | 按住开启体感鼠标 | ZL + SR 为精准体感 |
+| L | R | 单次 Fn（系统语音输入） | 同普通层 |
+| SL | SR | Return / Enter | Shift + Enter（换行但不发送） |
+| ← | A | Esc | Control + C（强制中断） |
+| ↓ | B | 鼠标右键 | 同普通层 |
+| ↑ | X | 删除；按住连续删除 | 同普通层 |
+| → | Y | 鼠标左键；按住可拖动 | 同普通层 |
+| − | + | Command + Tab（切换应用） | 同普通层 |
+| 截图键 | Home | 打开状态面板 | 连点轮换 `/ → @ → $ → !` |
+| 摇杆按下 / 上下 / 左右 | 同右手柄 | 同右手柄 | 同右手柄 |
+
+左右手柄的按键映射各存一套，在「按键映射」页顶部切换后分别设置。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-left-dark.png">
+  <img src="docs/assets/screenshots/settings-mapping-left.png" alt="按键映射页选中左手柄：左手柄示意图和左手柄的按键卡片">
+</picture>
+
+**两只同时连着时：**谁按键就用谁。拿起另一只按任意键就切换过去，另一只显示为「待机」；
+摇杆被碰到或手柄被晃动都不会切换，正按着扳机移动光标或按着其他键时也不会切换。
+正在用的那只断开或休眠后，会自动改用另一只。「立即休眠」会让所有已连接的手柄一起休眠。
+
 ## 系统要求
 
 - macOS 14 或更高版本；下载的安装包仅支持 Apple 芯片的 Mac，Intel 机型请从源码构建；
-- 原版 Nintendo Switch Joy-Con (R)；
+- 原版 Nintendo Switch Joy-Con (R) 或 Joy-Con (L)，也可以两只都连；
 - 蓝牙连接；
 - “辅助功能”权限；若系统阻止 HID 输入，再授予“输入监控”权限；
 - 使用语音输入时，需要额外准备麦克风。
 
 ## 首次使用
 
-1. 在 macOS「系统设置 → 蓝牙」中配对 `Joy-Con (R)`；
+1. 在 macOS「系统设置 → 蓝牙」中配对 `Joy-Con (R)` 或 `Joy-Con (L)`；
 2. 按照提示授予 App“辅助功能”权限；
 3. 连接成功后把 Joy-Con 静置约一秒，等待零点校准完成；
-4. 按住 ZR，轻轻转动手腕开始控制光标。
+4. 按住 ZR（左手柄为 ZL），轻轻转动手腕开始控制光标。
 
 授权后仍无响应时，可点击错误提示中的「重新连接」，或关闭再开启控制台右上角的遥控开关。
 打开控制台时也会重试此前打开失败的设备连接。如果 macOS 提示必须退出并重新打开，
