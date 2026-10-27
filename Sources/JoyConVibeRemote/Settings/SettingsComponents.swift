@@ -11,23 +11,23 @@ enum Palette {
 
 struct SettingsCard<Content: View>: View {
     var title: String?
-    var padding: CGFloat = 18
+    var padding: CGFloat = 12
     /// Stretch to the height offered by the parent, for cards laid out side
     /// by side that should line up.
     var fillsHeight = false
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 9) {
             if let title {
-                Text(title).font(.system(size: 14, weight: .semibold))
+                Text(title).font(.system(size: 13, weight: .semibold))
             }
             content
         }
         .padding(padding)
         .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil, alignment: .topLeading)
-        .background(Palette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Palette.hairline))
+        .background(Palette.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Palette.hairline))
     }
 }
 
@@ -38,9 +38,9 @@ struct StatusPill: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11.5, weight: .semibold))
-            .padding(.horizontal, 9)
-            .padding(.vertical, 3)
+            .font(.system(size: 10.5, weight: .semibold))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
             .foregroundStyle(foreground)
             .background(foreground.opacity(0.13), in: Capsule())
     }
@@ -63,17 +63,17 @@ struct KeyCap: View {
     var body: some View {
         Group {
             if let systemImage {
-                Image(systemName: systemImage).font(.system(size: 10, weight: .bold))
+                Image(systemName: systemImage).font(.system(size: 8.5, weight: .bold))
             } else {
-                Text(label).font(.system(size: 11.5, weight: .bold, design: .rounded))
+                Text(label).font(.system(size: 10, weight: .bold, design: .rounded))
             }
         }
         .foregroundStyle(isHighlighted ? Color.white : Palette.pink)
-        .frame(minWidth: 24, minHeight: 22)
-        .padding(.horizontal, 5)
-        .background(isHighlighted ? Color.accentColor : Palette.pinkFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .frame(minWidth: 20, minHeight: 18)
+        .padding(.horizontal, 4)
+        .background(isHighlighted ? Color.accentColor : Palette.pinkFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(isHighlighted ? Color.accentColor : Palette.pink, lineWidth: 1.5)
         )
         .accessibilityHidden(true)
@@ -154,16 +154,16 @@ struct TuningSlider: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(title).font(.system(size: 13.5, weight: .semibold))
-                Text(detail).font(.caption).foregroundStyle(.secondary)
-                Spacer()
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title).font(.system(size: 12.5, weight: .semibold))
+                Text(detail).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                Spacer(minLength: 4)
                 Text(format(value))
-                    .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Palette.cell, in: RoundedRectangle(cornerRadius: 6))
+                    .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(Palette.cell, in: RoundedRectangle(cornerRadius: 5))
             }
             GeometryReader { proxy in
                 let width = proxy.size.width
@@ -204,7 +204,7 @@ struct TuningSlider: View {
                 Spacer()
                 Text(format(range.upperBound))
             }
-            .font(.system(size: 10.5))
+            .font(.system(size: 9.5))
             .foregroundStyle(.tertiary)
         }
         .accessibilityElement(children: .ignore)
@@ -257,11 +257,11 @@ struct ActionMenu<Action: Hashable>: View {
         } label: {
             VStack(spacing: 1) {
                 if let caption {
-                    Text(caption).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    Text(caption).font(.system(size: 9.5)).foregroundStyle(.secondary)
                 }
                 HStack(spacing: 3) {
                     Text(title(selection))
-                        .font(.system(size: 13, weight: isDimmed(selection) ? .regular : .semibold))
+                        .font(.system(size: 12, weight: isDimmed(selection) ? .regular : .semibold))
                         .foregroundStyle(isDimmed(selection) ? .tertiary : .primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -271,8 +271,9 @@ struct ActionMenu<Action: Hashable>: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(Palette.cell, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.vertical, 5)
+            .padding(.horizontal, 4)
+            .background(Palette.cell, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .contentShape(Rectangle())
         }
         .menuStyle(.button)

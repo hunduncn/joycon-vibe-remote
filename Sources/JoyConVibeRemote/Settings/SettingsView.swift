@@ -23,6 +23,16 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The height below which the page scrolls instead of squeezing.
+    var minimumContentHeight: CGFloat {
+        switch self {
+        case .status: return 470
+        case .motion: return 430
+        case .mapping: return 470
+        case .general: return 430
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .status: return "gamecontroller"
@@ -39,7 +49,9 @@ final class SettingsNavigation: ObservableObject {
 }
 
 struct SettingsView: View {
-    static let size = CGSize(width: 1180, height: 880)
+    /// Preferred size; the window shrinks to fit smaller screens.
+    static let size = CGSize(width: 860, height: 580)
+    static let minimumSize = CGSize(width: 840, height: 540)
 
     @ObservedObject var model: AppModel
     @ObservedObject var settings: RemoteSettings
@@ -51,23 +63,34 @@ struct SettingsView: View {
             Divider()
             VStack(alignment: .leading, spacing: 0) {
                 header
-                    .padding(.horizontal, 30)
-                    .padding(.top, 30)
-                    .padding(.bottom, 18)
-                Group {
-                    switch navigation.page {
-                    case .status: StatusPage(model: model, settings: settings, liveInput: model.liveInput)
-                    case .motion: MotionPage(model: model, settings: settings)
-                    case .mapping: MappingPage(model: model, settings: settings, highlight: model.pressHighlight)
-                    case .general: GeneralPage(model: model, settings: settings)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .padding(.bottom, 12)
+                // Pages fill a large window and scroll in a short one, such as
+                // a 13-inch laptop with the Dock showing.
+                GeometryReader { proxy in
+                    ScrollView(.vertical) {
+                        Group {
+                            switch navigation.page {
+                            case .status: StatusPage(model: model, settings: settings, liveInput: model.liveInput)
+                            case .motion: MotionPage(model: model, settings: settings)
+                            case .mapping: MappingPage(model: model, settings: settings, highlight: model.pressHighlight)
+                            case .general: GeneralPage(model: model, settings: settings)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 16)
+                        .frame(
+                            width: proxy.size.width,
+                            height: max(navigation.page.minimumContentHeight, proxy.size.height),
+                            alignment: .top
+                        )
                     }
+                    .scrollBounceBehavior(.basedOnSize)
                 }
-                .padding(.horizontal, 30)
-                .padding(.bottom, 24)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(minWidth: Self.minimumSize.width, minHeight: Self.minimumSize.height)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -78,15 +101,15 @@ struct SettingsView: View {
                 Button {
                     navigation.page = page
                 } label: {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 4) {
                         Image(systemName: page.systemImage)
-                            .font(.system(size: 20, weight: .regular))
-                            .frame(height: 24)
-                        Text(page.title).font(.system(size: 12, weight: selected ? .semibold : .regular))
+                            .font(.system(size: 16, weight: .regular))
+                            .frame(height: 20)
+                        Text(page.title).font(.system(size: 10.5, weight: selected ? .semibold : .regular))
                     }
                     .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 10)
                     .background(selected ? Color.accentColor.opacity(0.12) : .clear)
                     .contentShape(Rectangle())
                 }
@@ -94,16 +117,16 @@ struct SettingsView: View {
             }
             Spacer()
         }
-        .padding(.top, 56)
-        .frame(width: 150)
+        .padding(.top, 44)
+        .frame(width: 84)
         .background(Color.primary.opacity(0.03))
     }
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(navigation.page.title).font(.system(size: 26, weight: .bold))
-                Text(navigation.page.subtitle).font(.system(size: 12.5)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(navigation.page.title).font(.system(size: 20, weight: .bold))
+                Text(navigation.page.subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
             DeviceBadge(model: model)
@@ -115,12 +138,12 @@ private struct DeviceBadge: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Circle()
                 .fill(model.isConnected ? Color.green : Color.secondary.opacity(0.5))
-                .frame(width: 9, height: 9)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.deviceName).font(.system(size: 14, weight: .semibold))
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.deviceName).font(.system(size: 12.5, weight: .semibold))
                 HStack(spacing: 4) {
                     Text(model.isConnected ? "已连接" : "未连接")
                         .fontWeight(.semibold)
@@ -129,14 +152,14 @@ private struct DeviceBadge: View {
                         Text("· 电量 \(model.batteryLevel * 25)%").foregroundStyle(.secondary)
                     }
                 }
-                .font(.system(size: 12))
+                .font(.system(size: 10.5))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Palette.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Palette.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(model.isConnected ? Color.accentColor.opacity(0.35) : Palette.hairline)
         )
     }

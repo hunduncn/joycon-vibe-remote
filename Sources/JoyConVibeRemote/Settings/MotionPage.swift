@@ -8,11 +8,11 @@ struct MotionPage: View {
     private let standard = PointerSettings()
 
     var body: some View {
-        HStack(alignment: .top, spacing: 18) {
-            direction.frame(width: 430)
+        HStack(alignment: .top, spacing: 10) {
+            direction.frame(minWidth: 270, maxWidth: 310)
             feel
         }
-        .frame(maxHeight: 640, alignment: .top)
+        .frame(maxHeight: 460, alignment: .top)
         // Rebuild controls that hold their own copy of a value after a reset.
         .id(settings.pointerTuningRevision)
     }
@@ -20,37 +20,37 @@ struct MotionPage: View {
     private var direction: some View {
         SettingsCard(title: "方向", fillsHeight: true) {
             ScreenSketch()
-                .frame(height: 196)
+                .frame(height: 112)
 
             ZStack {
                 JoyConArtwork(showsLabels: false)
-                    .frame(width: 104, height: 226)
+                    .frame(width: 66, height: 144)
                     .rotationEffect(.degrees(-14))
                 CurvedArrow(clockwise: false)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                    .frame(width: 70, height: 110)
-                    .offset(x: -110, y: -6)
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    .frame(width: 44, height: 72)
+                    .offset(x: -72, y: -6)
                 CurvedArrow(clockwise: true)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                    .frame(width: 70, height: 110)
-                    .offset(x: 110, y: -6)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("左右转动手腕").font(.system(size: 13, weight: .semibold))
-                    Text("光标左右移动").font(.caption).foregroundStyle(.secondary)
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    .frame(width: 44, height: 72)
+                    .offset(x: 72, y: -6)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("左右转动手腕").font(.system(size: 11.5, weight: .semibold))
+                    Text("光标左右移动").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .offset(y: 80)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("上下抬腕").font(.system(size: 13, weight: .semibold))
-                    Text("光标上下移动").font(.caption).foregroundStyle(.secondary)
+                .offset(y: 56)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("上下抬腕").font(.system(size: 11.5, weight: .semibold))
+                    Text("光标上下移动").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .offset(y: 80)
+                .offset(y: 56)
             }
-            .frame(height: 260)
+            .frame(height: 176)
 
             Spacer(minLength: 0)
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 InvertToggle(title: "水平反向", initialValue: settings.invertHorizontal) { settings.invertHorizontal = $0 }
                 InvertToggle(title: "垂直反向", initialValue: settings.invertVertical) { settings.invertVertical = $0 }
             }
@@ -60,11 +60,12 @@ struct MotionPage: View {
     private var feel: some View {
         SettingsCard(fillsHeight: true) {
             HStack {
-                Text("手感").font(.system(size: 14, weight: .semibold))
+                Text("手感").font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button("恢复默认") { model.resetPointerTuning() }
+                    .controlSize(.small)
             }
-            VStack(spacing: 20) {
+            VStack(spacing: 10) {
                 TuningSlider(
                     title: "整体灵敏度", detail: "手腕转同样角度，光标走多远",
                     initialValue: settings.sensitivity, range: 0.25...4, step: 0.05,
@@ -102,18 +103,20 @@ struct MotionPage: View {
                     onEditingChanged: model.setPointerTuningEditing
                 )
             }
-            HStack(spacing: 12) {
-                Image(systemName: "lightbulb").foregroundStyle(.yellow)
-                Text("滑块上的小竖线是默认值。一次只改一项，更容易找到顺手的感觉。")
-                    .font(.caption)
+            Spacer(minLength: 0)
+            HStack(spacing: 8) {
+                Image(systemName: "lightbulb").font(.system(size: 11)).foregroundStyle(.yellow)
+                Text("小竖线是默认值，一次只改一项更容易找到手感。")
+                    .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
                 Button("重新校准") { model.recalibrate() }
+                    .controlSize(.small)
             }
-            .padding(12)
-            .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.accentColor.opacity(0.2)))
+            .padding(8)
+            .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Color.accentColor.opacity(0.2)))
         }
     }
 }
@@ -132,11 +135,12 @@ private struct InvertToggle: View {
     var body: some View {
         Toggle(title, isOn: Binding(get: { isOn }, set: { isOn = $0; onChange($0) }))
             .toggleStyle(.switch)
-            .controlSize(.small)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .controlSize(.mini)
+            .font(.system(size: 11.5))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity)
-            .background(Palette.cell, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Palette.cell, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -144,8 +148,8 @@ private struct InvertToggle: View {
 private struct ScreenSketch: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(red: 0.12, green: 0.14, blue: 0.15))
-            Capsule().fill(Color.white.opacity(0.12)).frame(height: 9).padding(14)
+            RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color(red: 0.12, green: 0.14, blue: 0.15))
+            Capsule().fill(Color.white.opacity(0.12)).frame(height: 6).padding(9)
             GeometryReader { proxy in
                 let w = proxy.size.width, h = proxy.size.height
                 Path { path in
@@ -158,12 +162,12 @@ private struct ScreenSketch: View {
                 }
                 .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [6, 7]))
                 Image(systemName: "cursorarrow")
-                    .font(.system(size: 26))
+                    .font(.system(size: 17))
                     .foregroundStyle(.white)
                     .shadow(radius: 2)
-                    .position(x: w * 0.78 + 8, y: h * 0.58 + 12)
+                    .position(x: w * 0.78 + 5, y: h * 0.58 + 8)
             }
-            Text("屏幕").font(.caption2).foregroundStyle(.white.opacity(0.5)).padding(14).frame(maxHeight: .infinity, alignment: .bottomLeading)
+            Text("屏幕").font(.system(size: 9)).foregroundStyle(.white.opacity(0.5)).padding(9).frame(maxHeight: .infinity, alignment: .bottomLeading)
         }
     }
 }

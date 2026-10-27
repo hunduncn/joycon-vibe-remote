@@ -20,15 +20,15 @@ struct MappingPage: View {
     }
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             HStack(alignment: .center, spacing: 0) {
-                column(MappingLayout.left, spacing: 22).frame(width: 300)
-                Spacer(minLength: 16)
+                column(MappingLayout.left, spacing: 12).frame(minWidth: 214, maxWidth: 250)
+                Spacer(minLength: 10)
                 JoyConArtwork(highlighted: highlighted.map { [$0] } ?? [])
-                    .frame(width: 262, height: 568)
+                    .frame(width: 170, height: 368)
                     .anchorPreference(key: MappingAnchorsKey.self, value: .bounds) { MappingAnchors(artwork: $0) }
-                Spacer(minLength: 16)
-                column(MappingLayout.right, spacing: 10).frame(width: 300)
+                Spacer(minLength: 10)
+                column(MappingLayout.right, spacing: 6).frame(minWidth: 214, maxWidth: 250)
             }
             .frame(maxHeight: .infinity)
             .overlayPreferenceValue(MappingAnchorsKey.self) { anchors in
@@ -47,6 +47,14 @@ struct MappingPage: View {
 
     private func column(_ parts: [JoyConPart], spacing: CGFloat) -> some View {
         VStack(spacing: spacing) {
+            // The two layers are named once per column instead of in every cell.
+            HStack(spacing: 6) {
+                Text("单按").frame(maxWidth: .infinity)
+                Text("按住 SL").frame(maxWidth: .infinity)
+            }
+            .font(.system(size: 9.5))
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 10)
             ForEach(parts, id: \.self) { part in
                 MappingCard(part: part, settings: settings, isHighlighted: highlighted == part)
                     .anchorPreference(key: MappingAnchorsKey.self, value: .bounds) { MappingAnchors(cards: [part: $0]) }
@@ -55,29 +63,29 @@ struct MappingPage: View {
     }
 
     private var bottomBar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             Image(systemName: "dot.radiowaves.left.and.right")
-                .font(.system(size: 17))
+                .font(.system(size: 13))
                 .foregroundStyle(Color.accentColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("按键定位").font(.system(size: 13, weight: .semibold))
-                Text("按下手柄上的键，自动高亮对应的设置卡片").font(.caption).foregroundStyle(.secondary)
-            }
+            Text("按键定位").font(.system(size: 12, weight: .semibold))
             Toggle("按键定位", isOn: $settings.highlightPressedButton)
                 .labelsHidden()
                 .toggleStyle(.switch)
-                .controlSize(.small)
-            Divider().frame(height: 28)
-            Text("灰色的「同单按」表示该键在 SL 副层里沿用单按动作")
-                .font(.caption)
+                .controlSize(.mini)
+                .help("按下手柄上的键，自动高亮对应的设置卡片")
+            Divider().frame(height: 16)
+            Text("灰色「同单按」表示该键在 SL 副层里沿用单按动作")
+                .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
-            Spacer()
+                .lineLimit(1)
+            Spacer(minLength: 6)
             Button("恢复默认") { settings.resetButtonMappings() }
+                .controlSize(.small)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(Palette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Palette.hairline))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Palette.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.hairline))
     }
 }
 
@@ -162,38 +170,30 @@ private struct MappingCard: View {
     let isHighlighted: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
                 KeyCap(label: capLabel, systemImage: capSymbol, isHighlighted: isHighlighted)
-                Text(name).font(.system(size: 13.5, weight: .semibold))
-                Spacer()
+                Text(name).font(.system(size: 12, weight: .semibold))
+                Spacer(minLength: 4)
                 if MappingLayout.fixed.contains(part) {
-                    Text("固定")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Palette.cell, in: RoundedRectangle(cornerRadius: 6))
+                    tag("固定", color: .secondary, background: Palette.cell)
                 } else if isHighlighted {
-                    Text("刚刚按下")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    tag("刚刚按下", color: .accentColor, background: Color.accentColor.opacity(0.12))
+                } else if part == .stick {
+                    Text("左右为 ← →").font(.system(size: 9.5)).foregroundStyle(.secondary)
                 }
             }
             content
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             isHighlighted ? Color.accentColor.opacity(0.06) : Palette.card,
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(isHighlighted ? Color.accentColor.opacity(0.6) : Palette.hairline, lineWidth: isHighlighted ? 1.5 : 1)
         )
         .animation(.easeOut(duration: 0.15), value: isHighlighted)
@@ -207,7 +207,7 @@ private struct MappingCard: View {
         case .sl:
             note("按住进入副层，各键的「按住 SL」动作生效")
         case .stick:
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 row("按下") { buttonMenus(for: .stick) }
                 row("上下") {
                     ActionMenu(
@@ -227,17 +227,16 @@ private struct MappingCard: View {
                         onSelect: settings.setStickVerticalSL
                     )
                 }
-                note("左右固定为方向键 ← →")
             }
         default:
-            HStack(spacing: 8) { buttonMenus(for: part.button) }
+            HStack(spacing: 6) { buttonMenus(for: part.button) }
         }
     }
 
     @ViewBuilder
     private func buttonMenus(for button: JoyConButton) -> some View {
         ActionMenu(
-            caption: "单按",
+            caption: nil,
             selection: settings.binding(for: button).primary,
             choices: RemoteButtonAction.primaryChoices,
             title: \.mappingTitle,
@@ -245,7 +244,7 @@ private struct MappingCard: View {
             onSelect: { settings.setPrimaryMapping($0, for: button) }
         )
         ActionMenu(
-            caption: "按住 SL",
+            caption: nil,
             selection: settings.binding(for: button).withSL,
             choices: RemoteButtonAction.slChoices,
             title: \.mappingTitle,
@@ -255,14 +254,23 @@ private struct MappingCard: View {
     }
 
     private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 8) {
-            Text(label).font(.caption).foregroundStyle(.secondary).frame(width: 28, alignment: .leading)
+        HStack(spacing: 6) {
+            Text(label).font(.system(size: 10)).foregroundStyle(.secondary).frame(width: 22, alignment: .leading)
             content()
         }
     }
 
     private func note(_ text: String) -> some View {
-        Text(text).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+        Text(text).font(.system(size: 10.5)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func tag(_ text: String, color: Color, background: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(background, in: RoundedRectangle(cornerRadius: 5))
     }
 
     private var name: String {

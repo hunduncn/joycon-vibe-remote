@@ -10,8 +10,8 @@ struct GeneralPage: View {
     private static let manual = URL(string: "https://hunduncn.github.io/joycon-vibe-remote/manual/")!
 
     var body: some View {
-        HStack(alignment: .top, spacing: 18) {
-            VStack(spacing: 18) {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 10) {
                 SettingsCard(title: "启动") {
                     row(icon: "power", tint: .indigo, title: "登录时启动", detail: model.loginItemMessage ?? "开机后自动常驻菜单栏") {
                         Toggle("登录时启动", isOn: Binding(get: { settings.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
@@ -52,11 +52,11 @@ struct GeneralPage: View {
                     }
                 }
             }
-            .frame(width: 480)
+            .frame(minWidth: 330, maxWidth: 380)
 
             about
         }
-        .frame(maxHeight: 620, alignment: .top)
+        .frame(maxHeight: 440, alignment: .top)
         .confirmationDialog("恢复全部默认设置？", isPresented: $confirmingReset) {
             Button("恢复默认", role: .destructive) { model.resetAllSettings() }
             Button("取消", role: .cancel) {}
@@ -71,29 +71,29 @@ struct GeneralPage: View {
                 HStack {
                     Spacer()
                     Button("退出 App", role: .destructive) { NSApplication.shared.terminate(nil) }
+                        .controlSize(.small)
                 }
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
-                    .frame(width: 150, height: 150)
-                    .padding(.top, 10)
-                Text("Joy-Con Vibe Remote").font(.system(size: 22, weight: .bold)).padding(.top, 6)
-                Text("版本 \(Self.version)").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                    .frame(width: 92, height: 92)
+                Text("Joy-Con Vibe Remote").font(.system(size: 17, weight: .bold)).padding(.top, 4)
+                Text("版本 \(Self.version)").font(.system(size: 10.5)).foregroundStyle(.secondary).padding(.top, 2)
                 Text("把 Nintendo Switch 右手 Joy-Con 变成 macOS 的体感鼠标与 Vibe Coding 遥控器。")
-                    .font(.system(size: 12.5))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(width: 320)
-                    .padding(.top, 16)
-                VStack(spacing: 10) {
+                    .frame(maxWidth: 260)
+                    .padding(.top, 10)
+                VStack(spacing: 6) {
                     linkButton("在 GitHub 查看新版本") { NSWorkspace.shared.open(Self.repository.appendingPathComponent("releases")) }
                     linkButton("打开网页说明书") { NSWorkspace.shared.open(Self.manual) }
                     linkButton("第三方声明") { openNotices() }
                 }
-                .frame(width: 300)
-                .padding(.top, 28)
-                Spacer(minLength: 20)
+                .frame(maxWidth: 230)
+                .padding(.top, 14)
+                Spacer(minLength: 10)
                 Text("Joy-Con 与 Nintendo Switch 是 Nintendo 的商标。\n本项目为独立开发工具，与 Nintendo 无隶属关系。")
-                    .font(.system(size: 11))
+                    .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
             }
@@ -116,10 +116,10 @@ struct GeneralPage: View {
     private func linkButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-                .background(Palette.cell, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .padding(.vertical, 6)
+                .background(Palette.cell, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -132,18 +132,19 @@ struct GeneralPage: View {
         detail: String,
         @ViewBuilder trailing: () -> Trailing
     ) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(tint, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13.5, weight: .semibold))
-                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                .frame(width: 24, height: 24)
+                .background(tint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 12.5, weight: .semibold))
+                Text(detail).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
             trailing()
+                .controlSize(.small)
         }
     }
 }
