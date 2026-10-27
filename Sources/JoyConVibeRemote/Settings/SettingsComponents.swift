@@ -302,12 +302,17 @@ extension AppModel {
         case let .calibrating(progress):
             return "静置约 1 秒 · \(Int(progress * 100))%"
         case .disconnected:
-            return "请配对并唤醒 Joy-Con (R)"
+            return "请配对并唤醒 Joy-Con"
         case .sleeping:
             return "按 Joy-Con 任意键唤醒"
         default:
             return deviceName
         }
+    }
+
+    /// "Joy-Con (L) · 待机" while the other controller is connected but idle.
+    var standbyLine: String? {
+        standbySide.map { "\(deviceName(for: $0)) · 待机" }
     }
 
     var batterySymbol: String {

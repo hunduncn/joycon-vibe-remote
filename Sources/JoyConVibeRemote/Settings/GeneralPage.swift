@@ -31,7 +31,7 @@ struct GeneralPage: View {
                         .fixedSize()
                         Button("立即休眠") { model.sleepController() }
                             .disabled(!model.isConnected)
-                            .help("让手柄马上断开蓝牙休眠")
+                            .help("让所有已连接的手柄马上断开蓝牙休眠")
                     }
                 }
                 SettingsCard(title: "系统权限") {
@@ -62,7 +62,7 @@ struct GeneralPage: View {
                     }
                 }
                 SettingsCard(title: "重置") {
-                    row(icon: "arrow.counterclockwise", tint: .gray, title: "恢复全部默认设置", detail: "按键映射和体感参数都会还原") {
+                    row(icon: "arrow.counterclockwise", tint: .gray, title: "恢复全部默认设置", detail: "左右手柄的按键映射和体感参数都会还原") {
                         Button("恢复默认…", role: .destructive) { confirmingReset = true }
                     }
                 }
@@ -76,7 +76,7 @@ struct GeneralPage: View {
             Button("恢复默认", role: .destructive) { model.resetAllSettings() }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("按键映射、体感参数和方向反转都会恢复为默认值，此操作无法撤销。")
+            Text("左右两套按键映射、体感参数和方向反转都会恢复为默认值，此操作无法撤销。")
         }
     }
 
@@ -93,7 +93,7 @@ struct GeneralPage: View {
                     .frame(width: 92, height: 92)
                 Text("Joy-Con Vibe Remote").font(.system(size: 17, weight: .bold)).padding(.top, 4)
                 Text("版本 \(Self.version)").font(.system(size: 10.5)).foregroundStyle(.secondary).padding(.top, 2)
-                Text("把 Nintendo Switch 右手 Joy-Con 变成 macOS 的体感鼠标与 Vibe Coding 遥控器。")
+                Text("把 Nintendo Switch Joy-Con（左手或右手）变成 macOS 的体感鼠标与 Vibe Coding 遥控器。")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

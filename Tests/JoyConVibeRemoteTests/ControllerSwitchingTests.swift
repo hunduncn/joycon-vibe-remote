@@ -175,4 +175,28 @@ final class ControllerSwitchingTests: XCTestCase {
             XCTAssertEqual(model.batteryLevel, 3)
         }
     }
+
+    func testStandbyLineNamesTheIdleController() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            XCTAssertNil(model.standbyLine)
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            XCTAssertEqual(model.standbyLine, "Joy-Con (L) · 待机")
+        }
+    }
+
+    func testDisconnectedDetailDoesNotNameASide() {
+        withModel { model, _ in
+            XCTAssertEqual(model.statusDetail, "请配对并唤醒 Joy-Con")
+            XCTAssertEqual(model.status.title, "等待 Joy-Con")
+        }
+    }
+
+    func testHighlightOnlyForTheActiveSide() {
+        XCTAssertEqual(MappingPage.highlightedPart(button: .a, editingSide: .left, activeSide: .left, enabled: true), .a)
+        XCTAssertNil(MappingPage.highlightedPart(button: .a, editingSide: .left, activeSide: .right, enabled: true))
+        XCTAssertNil(MappingPage.highlightedPart(button: .a, editingSide: .right, activeSide: nil, enabled: true))
+        XCTAssertNil(MappingPage.highlightedPart(button: .a, editingSide: .right, activeSide: .right, enabled: false))
+        XCTAssertNil(MappingPage.highlightedPart(button: nil, editingSide: .right, activeSide: .right, enabled: true))
+    }
 }

@@ -88,6 +88,9 @@ struct StatusMenuView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.status.title).font(.headline)
                 Text(model.statusDetail).font(.caption).foregroundStyle(.secondary)
+                if let standby = model.standbyLine {
+                    Text(standby).font(.caption2).foregroundStyle(.tertiary)
+                }
             }
 
             Spacer(minLength: 8)

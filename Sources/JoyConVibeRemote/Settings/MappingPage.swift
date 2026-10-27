@@ -18,53 +18,89 @@ struct MappingPage: View {
     @ObservedObject var model: AppModel
     @ObservedObject var settings: RemoteSettings
     @ObservedObject var highlight: PressHighlight
+    @State private var editingSide: JoyConSide = .right
+
+    /// Presses only point at a card when they come from the controller
+    /// being edited; the other one's buttons are named differently.
+    static func highlightedPart(
+        button: JoyConButton?,
+        editingSide: JoyConSide,
+        activeSide: JoyConSide?,
+        enabled: Bool
+    ) -> JoyConPart? {
+        guard enabled, editingSide == activeSide, let button else { return nil }
+        return JoyConPart(button)
+    }
 
     private var highlighted: JoyConPart? {
-        guard settings.highlightPressedButton, let button = highlight.button else { return nil }
-        return JoyConPart(button)
+        Self.highlightedPart(
+            button: highlight.button,
+            editingSide: editingSide,
+            activeSide: model.activeSide,
+            enabled: settings.highlightPressedButton
+        )
     }
 
     var body: some View {
         VStack(spacing: 10) {
             HStack(alignment: .center, spacing: 0) {
-                column(MappingLayout.columns(for: .right).left, spacing: 12).frame(minWidth: 214, maxWidth: 250)
+                column(MappingLayout.columns(for: editingSide).left).frame(minWidth: 214, maxWidth: 250)
                 Spacer(minLength: 10)
-                JoyConArtwork(highlighted: highlighted.map { [$0] } ?? [])
+                JoyConArtwork(side: editingSide, highlighted: highlighted.map { [$0] } ?? [])
                     .frame(width: 170, height: 368)
                     .anchorPreference(key: MappingAnchorsKey.self, value: .bounds) { MappingAnchors(artwork: $0) }
                 Spacer(minLength: 10)
-                column(MappingLayout.columns(for: .right).right, spacing: 6).frame(minWidth: 214, maxWidth: 250)
+                column(MappingLayout.columns(for: editingSide).right).frame(minWidth: 214, maxWidth: 250)
             }
             .frame(maxHeight: .infinity)
+            // Floats above the drawing, which leaves room at the top of the
+            // middle column, so the six-card column still fits.
+            .overlay(alignment: .top) { sidePicker }
             .overlayPreferenceValue(MappingAnchorsKey.self) { anchors in
                 GeometryReader { proxy in
-                    LeaderLines(anchors: anchors, proxy: proxy, highlighted: highlighted)
+                    LeaderLines(anchors: anchors, proxy: proxy, side: editingSide, highlighted: highlighted)
                 }
                 .allowsHitTesting(false)
             }
 
             bottomBar
         }
-        .onAppear { highlight.isActive = settings.highlightPressedButton }
+        .onAppear {
+            editingSide = model.activeSide ?? .right
+            highlight.isActive = settings.highlightPressedButton
+        }
         .onDisappear { highlight.isActive = false }
         .onChange(of: settings.highlightPressedButton) { _, enabled in highlight.isActive = enabled }
     }
 
-    private func column(_ parts: [JoyConPart], spacing: CGFloat) -> some View {
-        VStack(spacing: spacing) {
+    /// The column holding the taller stick card has six cards and needs
+    /// tighter spacing to fit.
+    private func column(_ parts: [JoyConPart]) -> some View {
+        VStack(spacing: parts.contains(.stick) ? 6 : 12) {
             // The two layers are named once per column instead of in every cell.
             HStack(spacing: 6) {
                 Text("单按").frame(maxWidth: .infinity)
-                Text("按住 SL").frame(maxWidth: .infinity)
+                Text("按住 \(editingSide.keyLabel(.sl))").frame(maxWidth: .infinity)
             }
             .font(.system(size: 9.5))
             .foregroundStyle(.tertiary)
             .padding(.horizontal, 10)
             ForEach(parts, id: \.self) { part in
-                MappingCard(part: part, settings: settings, isHighlighted: highlighted == part)
+                MappingCard(part: part, side: editingSide, settings: settings, isHighlighted: highlighted == part)
                     .anchorPreference(key: MappingAnchorsKey.self, value: .bounds) { MappingAnchors(cards: [part: $0]) }
             }
         }
+    }
+
+    private var sidePicker: some View {
+        Picker("编辑手柄", selection: $editingSide) {
+            ForEach(JoyConSide.allCases, id: \.self) { side in
+                Text(side.displayName).tag(side)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .fixedSize()
     }
 
     private var bottomBar: some View {
@@ -79,12 +115,12 @@ struct MappingPage: View {
                 .controlSize(.mini)
                 .help("按下手柄上的键，自动高亮对应的设置卡片")
             Divider().frame(height: 16)
-            Text("灰色「同单按」表示该键在 SL 副层里沿用单按动作")
+            Text("灰色「同单按」表示该键在 \(editingSide.keyLabel(.sl)) 副层里沿用单按动作")
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 6)
-            Button("恢复默认") { settings.resetButtonMappings(side: .right) }
+            Button("恢复\(editingSide.displayName)默认") { settings.resetButtonMappings(side: editingSide) }
                 .controlSize(.small)
         }
         .padding(.horizontal, 12)
@@ -113,6 +149,7 @@ private struct MappingAnchorsKey: PreferenceKey {
 private struct LeaderLines: View {
     let anchors: MappingAnchors
     let proxy: GeometryProxy
+    let side: JoyConSide
     let highlighted: JoyConPart?
 
     var body: some View {
@@ -138,10 +175,10 @@ private struct LeaderLines: View {
         in context: inout GraphicsContext,
         emphasized: Bool
     ) {
-        let center = JoyConGeometry.center(of: part).applying(transform)
+        let center = JoyConGeometry.center(of: part, side: side).applying(transform)
         let toLeft = card.midX < center.x
         let end = CGPoint(x: toLeft ? card.maxX : card.minX, y: card.midY)
-        let inset = JoyConGeometry.radius(of: part) * transform.a
+        let inset = JoyConGeometry.radius(of: part, side: side) * transform.a
         let start = CGPoint(x: center.x + (toLeft ? -inset : inset), y: center.y)
         let bend = (end.x - start.x) * 0.5
 
@@ -171,6 +208,7 @@ private struct LeaderLines: View {
 
 private struct MappingCard: View {
     let part: JoyConPart
+    let side: JoyConSide
     @ObservedObject var settings: RemoteSettings
     let isHighlighted: Bool
 
@@ -208,28 +246,28 @@ private struct MappingCard: View {
     private var content: some View {
         switch part {
         case .zr:
-            note("按住开启体感鼠标 · ZR + SL 精准体感")
+            note("按住开启体感鼠标 · \(side.keyLabel(.zr)) + \(side.keyLabel(.sl)) 精准体感")
         case .sl:
-            note("按住进入副层，各键的「按住 SL」动作生效")
+            note("按住进入副层，各键的「按住 \(side.keyLabel(.sl))」动作生效")
         case .stick:
             VStack(spacing: 4) {
                 row("按下") { buttonMenus(for: .stick) }
                 row("上下") {
                     ActionMenu(
                         caption: nil,
-                        selection: settings.stickVerticalBinding(for: .right).primary,
+                        selection: settings.stickVerticalBinding(for: side).primary,
                         choices: RemoteStickVerticalAction.primaryChoices,
                         title: \.mappingTitle,
                         isDimmed: { $0 == .none },
-                        onSelect: { settings.setStickVerticalPrimary($0, side: .right) }
+                        onSelect: { settings.setStickVerticalPrimary($0, side: side) }
                     )
                     ActionMenu(
                         caption: nil,
-                        selection: settings.stickVerticalBinding(for: .right).withSL,
+                        selection: settings.stickVerticalBinding(for: side).withSL,
                         choices: RemoteStickVerticalAction.slChoices,
                         title: \.mappingTitle,
                         isDimmed: { $0 == .usePrimary || $0 == .none },
-                        onSelect: { settings.setStickVerticalSL($0, side: .right) }
+                        onSelect: { settings.setStickVerticalSL($0, side: side) }
                     )
                 }
             }
@@ -242,19 +280,19 @@ private struct MappingCard: View {
     private func buttonMenus(for button: JoyConButton) -> some View {
         ActionMenu(
             caption: nil,
-            selection: settings.binding(for: button, side: .right).primary,
+            selection: settings.binding(for: button, side: side).primary,
             choices: RemoteButtonAction.primaryChoices,
             title: \.mappingTitle,
             isDimmed: { $0 == .none },
-            onSelect: { settings.setPrimaryMapping($0, for: button, side: .right) }
+            onSelect: { settings.setPrimaryMapping($0, for: button, side: side) }
         )
         ActionMenu(
             caption: nil,
-            selection: settings.binding(for: button, side: .right).withSL,
+            selection: settings.binding(for: button, side: side).withSL,
             choices: RemoteButtonAction.slChoices,
             title: \.mappingTitle,
             isDimmed: { $0 == .usePrimary || $0 == .none },
-            onSelect: { settings.setSLMapping($0, for: button, side: .right) }
+            onSelect: { settings.setSLMapping($0, for: button, side: side) }
         )
     }
 
@@ -278,24 +316,13 @@ private struct MappingCard: View {
             .background(background, in: RoundedRectangle(cornerRadius: 5))
     }
 
-    private var name: String {
-        switch part {
-        case .plus: return "加号键"
-        case .sr: return "侧键 SR"
-        case .sl: return "侧键 SL"
-        case .zr: return "扳机 ZR"
-        case .r: return "肩键 R"
-        case .home: return "Home 键"
-        case .stick: return "摇杆"
-        case .x, .y, .a, .b: return "\(part.button.mappingTitle) 键"
-        }
-    }
+    private var name: String { side.partName(part) }
 
-    private var capLabel: String { part.button.mappingTitle }
+    private var capLabel: String { side.keyLabel(part.button) }
 
     private var capSymbol: String? {
         switch part {
-        case .home: return "house.fill"
+        case .home: return side == .right ? "house.fill" : "camera.fill"
         case .stick: return "circle.circle"
         default: return nil
         }

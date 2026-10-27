@@ -25,7 +25,7 @@ struct StatusPage: View {
     private var hero: some View {
         SettingsCard(padding: 0, fillsHeight: true) {
             HStack(alignment: .top, spacing: 16) {
-                JoyConArtwork(highlighted: Set(liveInput.snapshot.buttons.map(JoyConPart.init)))
+                JoyConArtwork(side: model.activeSide ?? .right, highlighted: Set(liveInput.snapshot.buttons.map(JoyConPart.init)))
                     .frame(width: 96, height: 210)
                     .rotationEffect(.degrees(-8))
                     .padding(.leading, 20)
@@ -41,6 +41,9 @@ struct StatusPage: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(model.status.title).font(.system(size: 17, weight: .bold))
                             Text(model.statusDetail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            if let standby = model.standbyLine {
+                                Text(standby).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
+                            }
                         }
                     }
 
@@ -204,7 +207,7 @@ struct StatusPage: View {
         return ChecklistStep(
             done: done,
             title: "蓝牙已配对",
-            detail: asleep ? "已休眠，按任意键唤醒" : done ? model.deviceName : "未找到 Joy-Con (R)",
+            detail: asleep ? "已休眠，按任意键唤醒" : done ? model.deviceName : "未找到 Joy-Con",
             actionTitle: done ? nil : "蓝牙设置",
             action: { model.openBluetoothSettings() }
         )

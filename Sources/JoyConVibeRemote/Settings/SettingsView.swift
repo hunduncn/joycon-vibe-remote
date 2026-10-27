@@ -18,7 +18,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         switch self {
         case .status: return "连接、校准与权限一览，出问题时先看这里"
         case .motion: return "按住 ZR 转动手腕移动光标；调好后，下一次按下 ZR 生效"
-        case .mapping: return "每个按键有「单按」和「按住 SL」两层动作，点击动作即可修改"
+        case .mapping: return "每个按键有「单按」和「按住副层键」两层动作，点击动作即可修改"
         case .general: return "启动、权限和关于"
         }
     }
@@ -153,6 +153,9 @@ private struct DeviceBadge: View {
                     }
                 }
                 .font(.system(size: 10.5))
+                if let standby = model.standbyLine {
+                    Text(standby).font(.system(size: 10)).foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.horizontal, 12)
