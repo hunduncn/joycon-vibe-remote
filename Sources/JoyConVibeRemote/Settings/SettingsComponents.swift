@@ -289,6 +289,7 @@ extension RemoteStatus {
         case .active: return .blue
         case .connected: return .green
         case .paused, .disconnected: return .secondary
+        case .sleeping: return .indigo
         case .calibrating, .initializing: return .orange
         case .error: return .red
         }
@@ -302,6 +303,8 @@ extension AppModel {
             return "静置约 1 秒 · \(Int(progress * 100))%"
         case .disconnected:
             return "请配对并唤醒 Joy-Con (R)"
+        case .sleeping:
+            return "按 Joy-Con 任意键唤醒"
         default:
             return deviceName
         }

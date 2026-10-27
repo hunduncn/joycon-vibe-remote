@@ -1,6 +1,9 @@
 import Foundation
 import IOKit.hid
 import JoyConVibeCore
+import os
+
+let transportLog = Logger(subsystem: "com.aqxp.JoyConVibeRemote", category: "transport")
 
 private let nintendoVendorID = 0x057E
 private let rightJoyConProductID = 0x2007
@@ -14,6 +17,9 @@ protocol JoyConTransport: AnyObject {
     var isRunning: Bool { get }
     func start()
     func stop()
+    /// Asks the controller to drop its Bluetooth link and sleep. It wakes
+    /// and reconnects when any button is pressed.
+    func requestSleep()
 }
 
 final class JoyConHIDTransport: JoyConTransport {
@@ -23,13 +29,9 @@ final class JoyConHIDTransport: JoyConTransport {
     var onFrame: ((JoyConInputFrame) -> Void)?
     var onError: ((String) -> Void)?
 
-    private let manager: IOHIDManager
+    private var manager: IOHIDManager?
     private var session: JoyConHIDSession?
     private(set) var isRunning = false
-
-    init() {
-        manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-    }
 
     deinit {
         stop()
@@ -38,7 +40,13 @@ final class JoyConHIDTransport: JoyConTransport {
     func start() {
         guard !isRunning else { return }
         isRunning = true
+        transportLog.notice("transport start")
 
+        // A manager that was closed and reopened keeps its device set but no
+        // longer reports already-connected devices to the matching callback,
+        // so turning the remote off and on never reconnected. Start fresh.
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        self.manager = manager
         let matching: [String: Any] = [
             kIOHIDVendorIDKey: nintendoVendorID,
             kIOHIDProductIDKey: rightJoyConProductID,
@@ -68,8 +76,11 @@ final class JoyConHIDTransport: JoyConTransport {
     func stop() {
         guard isRunning else { return }
         isRunning = false
+        transportLog.notice("transport stop")
         session?.stop()
         session = nil
+        guard let manager else { return }
+        self.manager = nil
         IOHIDManagerRegisterDeviceMatchingCallback(manager, nil, nil)
         IOHIDManagerRegisterDeviceRemovalCallback(manager, nil, nil)
         IOHIDManagerUnscheduleFromRunLoop(
@@ -80,7 +91,13 @@ final class JoyConHIDTransport: JoyConTransport {
         IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
     }
 
+    func requestSleep() {
+        transportLog.notice("sleep requested, session=\(self.session != nil)")
+        session?.requestSleep()
+    }
+
     fileprivate func didMatch(device: IOHIDDevice) {
+        transportLog.notice("device matched, running=\(self.isRunning), hasSession=\(self.session != nil)")
         guard isRunning, session == nil else { return }
         let productName = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String
             ?? "Joy-Con (R)"
@@ -100,6 +117,7 @@ final class JoyConHIDTransport: JoyConTransport {
     }
 
     fileprivate func didRemove(device: IOHIDDevice) {
+        transportLog.notice("device removed, ownsSession=\(self.session.map { CFEqual($0.device, device) } ?? false)")
         guard let session, CFEqual(session.device, device) else { return }
         session.stop()
         self.session = nil
@@ -211,6 +229,7 @@ private final class JoyConHIDSession {
             let now = ProcessInfo.processInfo.systemUptime
             if session.streamWatchdog.shouldRecover(at: now) {
                 if !session.isRecoveringStream {
+                    transportLog.notice("input stream stalled; reconfiguring")
                     session.isRecoveringStream = true
                     session.onRecovering?()
                 }
@@ -218,6 +237,11 @@ private final class JoyConHIDSession {
             }
             session.scheduleStreamWatchdogTick()
         }
+    }
+
+    func requestSleep() {
+        // Subcommand 0x06 sets the HCI state; 0x00 disconnects into sleep.
+        sendSubcommand(id: 0x06, data: [0x00])
     }
 
     private func sendStreamConfiguration() {
@@ -253,6 +277,7 @@ private final class JoyConHIDSession {
             )
         }
         if result != kIOReturnSuccess {
+            transportLog.error("subcommand 0x\(String(id, radix: 16)) failed: \(result)")
             onError?("Joy-Con 初始化命令失败（IOKit 错误 \(result)）。")
         }
     }

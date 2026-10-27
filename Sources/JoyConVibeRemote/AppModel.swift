@@ -3,6 +3,9 @@ import Combine
 import Foundation
 import IOKit.hid
 import JoyConVibeCore
+import os
+
+private let modelLog = Logger(subsystem: "com.aqxp.JoyConVibeRemote", category: "model")
 
 enum InputMonitoringAccess: Equatable {
     case granted
@@ -16,6 +19,7 @@ enum RemoteStatus: Equatable {
     case calibrating(Double)
     case connected
     case paused
+    case sleeping
     case active
     case precision
     case error
@@ -27,6 +31,7 @@ enum RemoteStatus: Equatable {
         case .calibrating: return "请将手柄静置"
         case .connected: return "已连接"
         case .paused: return "遥控已暂停"
+        case .sleeping: return "手柄已休眠"
         case .active: return "体感鼠标开启"
         case .precision: return "精准瞄准"
         case .error: return "需要处理"
@@ -40,6 +45,7 @@ enum RemoteStatus: Equatable {
         case .calibrating: return "gyroscope"
         case .connected: return "gamecontroller.fill"
         case .paused: return "pause.circle.fill"
+        case .sleeping: return "moon.zzz"
         case .active: return "scope"
         case .precision: return "viewfinder"
         case .error: return "exclamationmark.triangle.fill"
@@ -75,6 +81,9 @@ final class AppModel: ObservableObject {
     private var pointerTuningLifecycle = PointerTuningLifecycle()
     private let transport: any JoyConTransport
     private var hasStarted = false
+    private var idlePolicy = IdleSleepPolicy()
+    private var sleepRequested = false
+    private var idleTimer: Timer?
 
     init(
         settings: RemoteSettings,
@@ -96,10 +105,15 @@ final class AppModel: ObservableObject {
         refreshInputMonitoringAccess()
         setLaunchAtLogin(settings.launchAtLogin)
         transport.start()
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkIdleSleep() }
+        }
     }
 
     func stop() {
         hasStarted = false
+        idleTimer?.invalidate()
+        idleTimer = nil
         transport.stop()
         releaseAllInputs()
     }
@@ -163,6 +177,18 @@ final class AppModel: ObservableObject {
         restartPointerMotion()
     }
 
+    /// Picks pointer tracking back up after a reconnect or stream recovery.
+    /// The gyro zero measured earlier stays valid: it is refined whenever the
+    /// controller rests between clutches, and a woken controller is usually
+    /// already in hand, where a stationary recalibration would never finish.
+    private func resumePointerTracking() {
+        if pointerEngine.calibrationState == .ready {
+            restartPointerMotion()
+        } else {
+            pointerEngine.beginCalibration()
+        }
+    }
+
     private func restartPointerMotion() {
         pointerEngine.resetMotion()
         pointerFrameBuffer.reset()
@@ -180,7 +206,25 @@ final class AppModel: ObservableObject {
 
     func updateStatus(_ newStatus: RemoteStatus) {
         guard status != newStatus else { return }
+        if case .calibrating = newStatus, case .calibrating = status {} else {
+            modelLog.notice("status \(String(describing: self.status), privacy: .public) -> \(String(describing: newStatus), privacy: .public)")
+        }
         status = newStatus
+    }
+
+    /// Puts the controller to sleep once it has gone untouched for the
+    /// configured time, to save its battery.
+    func checkIdleSleep(at now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        let timeout = TimeInterval(settings.idleSleepMinutes) * 60
+        guard isConnected, !sleepRequested, idlePolicy.shouldSleep(at: now, timeout: timeout) else { return }
+        sleepController()
+    }
+
+    func sleepController() {
+        guard isConnected else { return }
+        sleepRequested = true
+        releaseAllInputs()
+        transport.requestSleep()
     }
 
     func openSettings(_ page: SettingsPage) {
@@ -243,22 +287,26 @@ final class AppModel: ObservableObject {
             self.isConnected = true
             self.deviceName = name
             self.errorMessage = nil
-            self.pointerEngine.beginCalibration()
+            self.sleepRequested = false
+            self.idlePolicy.reset()
+            self.resumePointerTracking()
             self.updateStatus(.initializing)
         }
         transport.onDisconnected = { [weak self] in
             guard let self else { return }
             self.isConnected = false
-            self.updateStatus(.disconnected)
+            // A controller we put to sleep is not lost; say how to wake it.
+            self.updateStatus(self.sleepRequested ? .sleeping : .disconnected)
+            self.sleepRequested = false
             self.updateTelemetry(batteryLevel: 0, isCharging: false)
             self.releaseAllInputs()
-            self.pointerEngine.beginCalibration()
+            self.pointerEngine.resetMotion()
             self.liveInput.reset()
         }
         transport.onRecovering = { [weak self] in
             guard let self, self.isConnected else { return }
             self.releaseAllInputs()
-            self.pointerEngine.beginCalibration()
+            self.resumePointerTracking()
             self.updateStatus(.initializing)
         }
         transport.onFrame = { [weak self] frame in
@@ -277,6 +325,7 @@ final class AppModel: ObservableObject {
             isCharging: frame.isCharging
         )
         let timestamp = ProcessInfo.processInfo.systemUptime
+        idlePolicy.record(frame, at: timestamp)
         liveInput.ingest(frame, timestamp: timestamp)
         pressHighlight.ingest(frame.buttons)
         guard settings.enabled else {

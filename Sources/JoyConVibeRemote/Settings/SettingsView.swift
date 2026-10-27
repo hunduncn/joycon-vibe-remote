@@ -145,7 +145,7 @@ private struct DeviceBadge: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.deviceName).font(.system(size: 12.5, weight: .semibold))
                 HStack(spacing: 4) {
-                    Text(model.isConnected ? "已连接" : "未连接")
+                    Text(model.isConnected ? "已连接" : model.status == .sleeping ? "已休眠" : "未连接")
                         .fontWeight(.semibold)
                         .foregroundStyle(model.isConnected ? Color.green : Color.secondary)
                     if model.isConnected, model.batteryLevel > 0 {

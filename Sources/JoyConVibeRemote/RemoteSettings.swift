@@ -16,6 +16,7 @@ final class RemoteSettings: ObservableObject {
         static let launchAtLogin = "app.launchAtLogin"
         static let pointerDirectionVersion = "pointer.directionVersion"
         static let highlightPressedButton = "ui.highlightPressedButton"
+        static let idleSleepMinutes = "power.idleSleepMinutes"
 
         static func buttonMapping(_ button: JoyConButton) -> String {
             "mapping.button.\(button.rawValue)"
@@ -58,6 +59,10 @@ final class RemoteSettings: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
+    /// Minutes without input before the controller is put to sleep; 0 never.
+    @Published var idleSleepMinutes: Int {
+        didSet { defaults.set(idleSleepMinutes, forKey: Key.idleSleepMinutes) }
+    }
     @Published var highlightPressedButton: Bool {
         didSet { defaults.set(highlightPressedButton, forKey: Key.highlightPressedButton) }
     }
@@ -82,6 +87,7 @@ final class RemoteSettings: ObservableObject {
         invertVertical = defaults.object(forKey: Key.invertVertical) as? Bool ?? false
         launchAtLogin = defaults.object(forKey: Key.launchAtLogin) as? Bool ?? true
         highlightPressedButton = defaults.object(forKey: Key.highlightPressedButton) as? Bool ?? true
+        idleSleepMinutes = defaults.object(forKey: Key.idleSleepMinutes) as? Int ?? 30
         buttonBindings = Dictionary(uniqueKeysWithValues: RemoteButtonAction.configurableButtons.map { button in
             let defaultBinding = RemoteButtonBinding.defaultBindings[button]
                 ?? RemoteButtonBinding(primary: .none, withSL: .usePrimary)

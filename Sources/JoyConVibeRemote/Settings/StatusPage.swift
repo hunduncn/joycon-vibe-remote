@@ -198,11 +198,13 @@ struct StatusPage: View {
     }
 
     private var bluetoothStep: ChecklistStep {
-        let done = model.isConnected
+        // A controller asleep to save power is paired, just not connected.
+        let asleep = model.status == .sleeping
+        let done = model.isConnected || asleep
         return ChecklistStep(
             done: done,
             title: "蓝牙已配对",
-            detail: done ? model.deviceName : "未找到 Joy-Con (R)",
+            detail: asleep ? "已休眠，按任意键唤醒" : done ? model.deviceName : "未找到 Joy-Con (R)",
             actionTitle: done ? nil : "蓝牙设置",
             action: { model.openBluetoothSettings() }
         )

@@ -12,11 +12,26 @@ struct GeneralPage: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(spacing: 10) {
-                SettingsCard(title: "启动") {
+                SettingsCard(title: "启动与省电") {
                     row(icon: "power", tint: .indigo, title: "登录时启动", detail: model.loginItemMessage ?? "开机后自动常驻菜单栏") {
                         Toggle("登录时启动", isOn: Binding(get: { settings.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
                             .labelsHidden()
                             .toggleStyle(.switch)
+                    }
+                    Divider()
+                    row(icon: "moon.zzz", tint: .purple, title: "闲置自动休眠", detail: "不用时让手柄断开蓝牙省电，按任意键唤醒") {
+                        Picker("闲置自动休眠", selection: $settings.idleSleepMinutes) {
+                            Text("关闭").tag(0)
+                            Text("10 分钟").tag(10)
+                            Text("30 分钟").tag(30)
+                            Text("1 小时").tag(60)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .fixedSize()
+                        Button("立即休眠") { model.sleepController() }
+                            .disabled(!model.isConnected)
+                            .help("让手柄马上断开蓝牙休眠")
                     }
                 }
                 SettingsCard(title: "系统权限") {

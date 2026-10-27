@@ -91,6 +91,107 @@ final class ReleaseLifecycleTests: XCTestCase {
         }
     }
 
+    func testIdleControllerIsPutToSleepAndReportedAsSleeping() {
+        withModel { model, transport, _ in
+            model.settings.idleSleepMinutes = 30
+            model.reconnect()
+            transport.onConnected?("Joy-Con (R)")
+            transport.onFrame?(JoyConInputFrame(buttons: [], stick: .zero))
+            let now = ProcessInfo.processInfo.systemUptime
+
+            model.checkIdleSleep(at: now + 29 * 60)
+            XCTAssertEqual(transport.sleepCount, 0)
+            model.checkIdleSleep(at: now + 31 * 60)
+            XCTAssertEqual(transport.sleepCount, 1)
+            // Repeated checks while the controller is going down send nothing more.
+            model.checkIdleSleep(at: now + 32 * 60)
+            XCTAssertEqual(transport.sleepCount, 1)
+
+            transport.onDisconnected?()
+            XCTAssertEqual(model.status, .sleeping)
+
+            // Pressing a button reconnects it and starts a fresh idle period.
+            transport.onConnected?("Joy-Con (R)")
+            XCTAssertEqual(model.status, .initializing)
+            transport.onFrame?(JoyConInputFrame(buttons: [.a], stick: .zero))
+            model.checkIdleSleep(at: ProcessInfo.processInfo.systemUptime + 60)
+            XCTAssertEqual(transport.sleepCount, 1)
+        }
+    }
+
+    private func stillFrames(_ count: Int) -> [JoyConInputFrame] {
+        let resting = GyroSample(degreesPerSecond: .zero, acceleration: Vector3(x: 0, y: 0, z: 4096))
+        return Array(repeating: JoyConInputFrame(buttons: [], stick: .zero, gyroSamples: [resting, resting, resting]), count: count)
+    }
+
+    private var movingFrame: JoyConInputFrame {
+        let moving = GyroSample(degreesPerSecond: Vector3(x: 0, y: 60, z: 0), acceleration: Vector3(x: 0, y: 0, z: 4096))
+        return JoyConInputFrame(buttons: [], stick: .zero, gyroSamples: [moving, moving, moving])
+    }
+
+    func testWakingFromSleepKeepsTheCalibrationSoItWorksInHand() {
+        withModel { model, transport, _ in
+            model.reconnect()
+            transport.onConnected?("Joy-Con (R)")
+            stillFrames(60).forEach { transport.onFrame?($0) }
+            XCTAssertEqual(model.status, .connected)
+
+            model.sleepController()
+            transport.onDisconnected?()
+            transport.onConnected?("Joy-Con (R)")
+            // Picked up and moving: no stationary recalibration is required.
+            transport.onFrame?(movingFrame)
+            XCTAssertEqual(model.status, .connected)
+        }
+    }
+
+    func testStreamRecoveryKeepsTheCalibration() {
+        withModel { model, transport, _ in
+            model.reconnect()
+            transport.onConnected?("Joy-Con (R)")
+            stillFrames(60).forEach { transport.onFrame?($0) }
+
+            transport.onRecovering?()
+            transport.onFrame?(movingFrame)
+            XCTAssertEqual(model.status, .connected)
+        }
+    }
+
+    func testFirstConnectionAndExplicitRecalibrationStillCalibrate() {
+        withModel { model, transport, _ in
+            model.reconnect()
+            transport.onConnected?("Joy-Con (R)")
+            transport.onFrame?(movingFrame)
+            XCTAssertEqual(model.status, .calibrating(0))
+
+            stillFrames(60).forEach { transport.onFrame?($0) }
+            model.recalibrate()
+            transport.onFrame?(movingFrame)
+            XCTAssertEqual(model.status, .calibrating(0))
+        }
+    }
+
+    func testIdleSleepCanBeTurnedOff() {
+        withModel { model, transport, _ in
+            model.settings.idleSleepMinutes = 0
+            model.reconnect()
+            transport.onConnected?("Joy-Con (R)")
+            transport.onFrame?(JoyConInputFrame(buttons: [], stick: .zero))
+
+            model.checkIdleSleep(at: ProcessInfo.processInfo.systemUptime + 24 * 3600)
+            XCTAssertEqual(transport.sleepCount, 0)
+        }
+    }
+
+    func testControllerLostWithoutASleepRequestIsReportedDisconnected() {
+        withModel { model, transport, _ in
+            model.reconnect()
+            transport.onConnected?("Joy-Con (R)")
+            transport.onDisconnected?()
+            XCTAssertEqual(model.status, .disconnected)
+        }
+    }
+
     private func withModel(_ body: (AppModel, FakeTransport, FakeLoginService) -> Void) {
         let suite = "ReleaseLifecycleTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -140,6 +241,11 @@ private final class FakeTransport: JoyConTransport {
     var failStart = false
     var startCount = 0
     var stopCount = 0
+    var sleepCount = 0
+
+    func requestSleep() {
+        sleepCount += 1
+    }
 
     func start() {
         startCount += 1
