@@ -26,6 +26,10 @@ final class ControllerSwitchingTests: XCTestCase {
         body(model, harness)
     }
 
+    private static func isDelete(_ action: RemoteAction) -> Bool {
+        action == .keyTap(.deleteBackward) || action == .keyShortcut(.deleteBackward, modifiers: [])
+    }
+
     private func connectCalibrated(_ side: JoyConSide, _ harness: Harness) {
         harness.transport.onConnected?(side, side.defaultName)
         TestFrames.still(60).forEach { harness.transport.onFrame?(side, $0) }
@@ -47,6 +51,7 @@ final class ControllerSwitchingTests: XCTestCase {
             harness.transport.onConnected?(.left, "Joy-Con (L)")
             XCTAssertEqual(model.activeSide, .right)
             XCTAssertEqual(model.standbySide, .left)
+            harness.transport.onFrame?(.left, TestFrames.pressing([]))
 
             harness.transport.onFrame?(.right, TestFrames.pressing([.y]))
             harness.transport.onFrame?(.right, TestFrames.pressing([]))
@@ -146,6 +151,7 @@ final class ControllerSwitchingTests: XCTestCase {
         withModel { model, harness in
             connectCalibrated(.right, harness)
             harness.transport.onConnected?(.left, "Joy-Con (L)")
+            harness.transport.onFrame?(.left, TestFrames.pressing([]))
             harness.transport.onFrame?(.left, TestFrames.pressing([.a]))
             harness.transport.onFrame?(.left, TestFrames.moving)
             XCTAssertEqual(model.status, .calibrating(0))
@@ -198,5 +204,67 @@ final class ControllerSwitchingTests: XCTestCase {
         XCTAssertNil(MappingPage.highlightedPart(button: .a, editingSide: .right, activeSide: nil, enabled: true))
         XCTAssertNil(MappingPage.highlightedPart(button: .a, editingSide: .right, activeSide: .right, enabled: false))
         XCTAssertNil(MappingPage.highlightedPart(button: nil, editingSide: .right, activeSide: .right, enabled: true))
+    }
+
+    func testHeldStandbyButtonDoesNothingWhenItTakesOver() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            // Squashed in a bag: X is held from its very first report.
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            harness.transport.onFrame?(.left, TestFrames.pressing([.x]))
+            harness.transport.onFrame?(.left, TestFrames.pressing([.x]))
+            XCTAssertEqual(model.activeSide, .right)
+            harness.transport.onDisconnected?(.right)
+            XCTAssertEqual(model.activeSide, .left)
+            for _ in 0..<5 {
+                harness.now += 1
+                harness.transport.onFrame?(.left, TestFrames.pressing([.x]))
+            }
+            XCTAssertFalse(harness.actions.contains(where: Self.isDelete), "\(harness.actions)")
+
+            harness.transport.onFrame?(.left, TestFrames.pressing([]))
+            harness.transport.onFrame?(.left, TestFrames.pressing([.x]))
+            XCTAssertTrue(harness.actions.contains(where: Self.isDelete), "\(harness.actions)")
+        }
+    }
+
+    func testSquashedTriggerOnStandbyDoesNotMoveThePointerAfterHandOff() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            var squashed = TestFrames.still(1)[0]
+            squashed.buttons = [.zr]
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            for _ in 0..<60 { harness.transport.onFrame?(.left, squashed) }
+            squashed.gyroSamples = TestFrames.moving.gyroSamples
+            harness.transport.onDisconnected?(.right)
+            harness.transport.onFrame?(.left, squashed)
+            XCTAssertNotEqual(model.status, .active)
+        }
+    }
+
+    func testOnlyTheSwitchingPressActsNotAButtonAlreadyHeld() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            connectCalibrated(.left, harness)
+            harness.transport.onFrame?(.right, TestFrames.pressing([.y]))
+            harness.transport.onFrame?(.left, TestFrames.pressing([.x]))
+            harness.transport.onFrame?(.right, TestFrames.pressing([]))
+            harness.actions.removeAll()
+            harness.transport.onFrame?(.left, TestFrames.pressing([.x, .a]))
+            XCTAssertEqual(model.activeSide, .left)
+            XCTAssertTrue(harness.actions.contains(.keyTap(.escape)), "\(harness.actions)")
+            XCTAssertFalse(harness.actions.contains(where: Self.isDelete), "\(harness.actions)")
+        }
+    }
+
+    func testStallWhileHoldingTriggerDoesNotBlockSwitching() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            connectCalibrated(.left, harness)
+            harness.transport.onFrame?(.right, TestFrames.pressing([.zr]))
+            harness.transport.onRecovering?(.right)
+            harness.transport.onFrame?(.left, TestFrames.pressing([.a]))
+            XCTAssertEqual(model.activeSide, .left)
+        }
     }
 }

@@ -88,6 +88,13 @@ final class AppModel: ObservableObject {
     private let transport: any JoyConTransport
     private var hasStarted = false
     private var arbiter = ActiveControllerArbiter()
+    /// Buttons each controller held in its last report, including reports
+    /// ignored while it was on standby.
+    private var heldButtons: [JoyConSide: Set<JoyConButton>] = [:]
+    /// Buttons the active controller already held when it took over. They
+    /// do nothing until released, so a button squashed on a standby
+    /// controller never fires, repeats or moves the pointer on a hand-off.
+    private var mustRelease = Set<JoyConButton>()
     private var deviceNames: [JoyConSide: String] = [:]
     private var telemetry: [JoyConSide: (level: Int, charging: Bool)] = [:]
     private var idlePolicies: [JoyConSide: IdleSleepPolicy] = [:]
@@ -170,6 +177,8 @@ final class AppModel: ObservableObject {
         releaseAllInputs()
         transport.stop()
         arbiter.reset()
+        heldButtons = [:]
+        mustRelease = []
         refreshControllers()
         telemetry = [:]
         sleepRequested = []
@@ -335,6 +344,8 @@ final class AppModel: ObservableObject {
                 self.releaseAllInputs()
                 self.updateStatus(.initializing)
             }
+            // Its inputs were released; what it held must not block a switch.
+            self.arbiter.clearHeld(side)
             self.resumePointerTracking(side)
         }
         transport.onFrame = { [weak self] side, frame in
@@ -354,6 +365,7 @@ final class AppModel: ObservableObject {
         errorMessage = nil
         sleepRequested.remove(side)
         idlePolicies[side] = IdleSleepPolicy()
+        heldButtons[side] = nil
         _ = arbiter.connect(side)
         refreshControllers()
         resumePointerTracking(side)
@@ -370,6 +382,7 @@ final class AppModel: ObservableObject {
         let wasAsleep = sleepRequested.remove(side) != nil
         telemetry[side] = nil
         idlePolicies[side] = nil
+        heldButtons[side] = nil
         pointerEngines[side]?.resetMotion()
         if wasActive {
             releaseAllInputs()
@@ -380,6 +393,7 @@ final class AppModel: ObservableObject {
         guard wasActive else { return }
         if let next = activeSide {
             modelLog.notice("switch \(side.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public)")
+            mustRelease = heldButtons[next] ?? []
             showTelemetry(of: next)
             resumePointerTracking(next)
             updateStatus(calibratedStatus(for: next))
@@ -422,10 +436,13 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func handle(frame: JoyConInputFrame, from side: JoyConSide) {
+    private func handle(frame incoming: JoyConInputFrame, from side: JoyConSide) {
         let timestamp = clock()
-        telemetry[side] = (frame.batteryLevel, frame.isCharging)
-        idlePolicies[side, default: IdleSleepPolicy()].record(frame, at: timestamp)
+        let heldBefore = heldButtons[side]
+        heldButtons[side] = incoming.buttons
+        telemetry[side] = (incoming.batteryLevel, incoming.isCharging)
+        idlePolicies[side, default: IdleSleepPolicy()].record(incoming, at: timestamp)
+        var frame = incoming
 
         switch arbiter.route(frame, from: side) {
         case .ignore:
@@ -434,6 +451,8 @@ final class AppModel: ObservableObject {
             keepCalibrating(side, with: frame)
             return
         case let .switchTo(next):
+            // The press that switched acts; anything held before it waits.
+            mustRelease = (heldBefore ?? frame.buttons).intersection(frame.buttons)
             if let previous = activeSide, previous != next {
                 modelLog.notice("switch \(previous.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public)")
                 releaseAllInputs()
@@ -445,6 +464,8 @@ final class AppModel: ObservableObject {
         case .accept:
             break
         }
+        mustRelease.formIntersection(frame.buttons)
+        frame.buttons.subtract(mustRelease)
 
         updateTelemetry(
             batteryLevel: frame.batteryLevel,

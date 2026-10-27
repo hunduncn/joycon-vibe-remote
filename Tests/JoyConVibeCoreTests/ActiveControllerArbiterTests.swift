@@ -30,6 +30,7 @@ final class ActiveControllerArbiterTests: XCTestCase {
     func testPressOnIdleControllerSwitches() {
         var arbiter = bothConnected()
         XCTAssertEqual(arbiter.route(frame([]), from: .right), .accept)
+        XCTAssertEqual(arbiter.route(frame([]), from: .left), .ignore)
         XCTAssertEqual(arbiter.route(frame([.y]), from: .left), .switchTo(.left))
         XCTAssertEqual(arbiter.active, .left)
     }
@@ -42,6 +43,7 @@ final class ActiveControllerArbiterTests: XCTestCase {
 
     func testNoSwitchWhileActiveHoldsAnyButton() {
         var arbiter = bothConnected()
+        _ = arbiter.route(frame([]), from: .left)
         _ = arbiter.route(frame([.zr]), from: .right)
         XCTAssertEqual(arbiter.route(frame([.a]), from: .left), .ignore)
         _ = arbiter.route(frame([]), from: .right)
@@ -53,6 +55,7 @@ final class ActiveControllerArbiterTests: XCTestCase {
 
     func testHeldButtonOnStandbyNeverSteals() {
         var arbiter = bothConnected()
+        _ = arbiter.route(frame([]), from: .right)
         for step in 0..<10 {
             _ = arbiter.route(frame(step.isMultiple(of: 2) ? [.a] : []), from: .right)
             XCTAssertEqual(arbiter.route(frame([.b]), from: .left), .ignore)
@@ -82,11 +85,23 @@ final class ActiveControllerArbiterTests: XCTestCase {
         XCTAssertEqual(arbiter.active, .left)
     }
 
-    func testReconnectedControllerStartsWithNoHeldButtons() {
+    func testFirstFrameAfterConnectIsOnlyABaseline() {
         var arbiter = bothConnected()
-        _ = arbiter.route(frame([.a]), from: .left)
-        _ = arbiter.disconnect(.left)
-        _ = arbiter.connect(.left)
+        _ = arbiter.route(frame([]), from: .right)
+        // Reconnected with a button squashed: it must not take over.
+        XCTAssertEqual(arbiter.route(frame([.b]), from: .left), .ignore)
+        XCTAssertEqual(arbiter.route(frame([.b]), from: .left), .ignore)
+        XCTAssertEqual(arbiter.route(frame([]), from: .left), .ignore)
+        XCTAssertEqual(arbiter.route(frame([.b]), from: .left), .switchTo(.left))
+    }
+
+    func testClearingHeldButtonsOfAStalledControllerAllowsSwitching() {
+        var arbiter = bothConnected()
+        _ = arbiter.route(frame([]), from: .left)
+        _ = arbiter.route(frame([.zr]), from: .right)
+        XCTAssertEqual(arbiter.route(frame([.a]), from: .left), .ignore)
+        arbiter.clearHeld(.right)
+        _ = arbiter.route(frame([]), from: .left)
         XCTAssertEqual(arbiter.route(frame([.a]), from: .left), .switchTo(.left))
     }
 }
