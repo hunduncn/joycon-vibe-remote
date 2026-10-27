@@ -21,6 +21,10 @@ protocol JoyConTransport: AnyObject {
     /// Asks a controller to drop its Bluetooth link and sleep. It wakes
     /// and reconnects when any button is pressed.
     func requestSleep(_ side: JoyConSide)
+    /// Puts a controller on standby, reporting only button changes, or back
+    /// to full 60 Hz reports with motion. Two controllers streaming full
+    /// reports share the Bluetooth link and make the pointer stutter.
+    func setStandby(_ side: JoyConSide, _ isStandby: Bool)
 }
 
 final class JoyConHIDTransport: JoyConTransport {
@@ -99,6 +103,11 @@ final class JoyConHIDTransport: JoyConTransport {
         sessions[side]?.requestSleep()
     }
 
+    func setStandby(_ side: JoyConSide, _ isStandby: Bool) {
+        transportLog.notice("standby \(side.rawValue, privacy: .public) = \(isStandby)")
+        sessions[side]?.setStandby(isStandby)
+    }
+
     fileprivate func didMatch(device: IOHIDDevice) {
         let productID = (IOHIDDeviceGetProperty(device, kIOHIDProductIDKey as CFString) as? NSNumber)?.intValue
         guard let side = JoyConSide.allCases.first(where: { $0.productID == productID }) else { return }
@@ -165,6 +174,7 @@ private final class JoyConHIDSession {
     private var stopped = false
     private var streamWatchdog = JoyConStreamWatchdog()
     private var isRecoveringStream = false
+    private var isStandby = false
 
     init(device: IOHIDDevice, side: JoyConSide) {
         self.device = device
@@ -236,7 +246,9 @@ private final class JoyConHIDSession {
     private func scheduleStreamWatchdogTick() {
         schedule(after: 0.25) { session in
             let now = ProcessInfo.processInfo.systemUptime
-            if session.streamWatchdog.shouldRecover(at: now) {
+            // On standby the controller only reports button changes, so a
+            // quiet stream is expected.
+            if !session.isStandby, session.streamWatchdog.shouldRecover(at: now) {
                 if !session.isRecoveringStream {
                     transportLog.notice("input stream stalled on \(session.side.rawValue, privacy: .public); reconfiguring")
                     session.isRecoveringStream = true
@@ -253,7 +265,22 @@ private final class JoyConHIDSession {
         sendSubcommand(id: 0x06, data: [0x00])
     }
 
+    func setStandby(_ standby: Bool) {
+        guard standby != isStandby else { return }
+        isStandby = standby
+        if !standby {
+            isRecoveringStream = false
+            streamWatchdog.start(at: ProcessInfo.processInfo.systemUptime)
+        }
+        sendStreamConfiguration()
+    }
+
     private func sendStreamConfiguration() {
+        // 0x3F reports only button changes and carries no motion.
+        if isStandby {
+            sendSubcommand(id: 0x03, data: [0x3F])
+            return
+        }
         sendSubcommand(id: 0x03, data: [0x30])
         schedule(after: 0.12) { $0.sendSubcommand(id: 0x40, data: [0x01]) }
         schedule(after: 0.24) { $0.sendSubcommand(id: 0x30, data: [0x01]) }

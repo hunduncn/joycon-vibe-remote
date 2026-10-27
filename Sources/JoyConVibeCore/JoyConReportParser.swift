@@ -36,6 +36,9 @@ public struct JoyConReportParser: Sendable {
         case 0x30:
             guard let frame = parseStandardFrame(payload: payload) else { return nil }
             return JoyConDecodedReport(frame: frame)
+        case 0x3F:
+            guard let frame = parseButtonOnlyFrame(payload: payload) else { return nil }
+            return JoyConDecodedReport(frame: frame)
         default:
             return nil
         }
@@ -64,6 +67,9 @@ public struct JoyConReportParser: Sendable {
         // buffer. Avoid checking only the first byte because the Joy-Con timer
         // can legitimately equal 0x21 or 0x30.
         if reportID == 0x30, bytes.count >= 49, bytes.first == reportID {
+            return bytes.dropFirst()
+        }
+        if reportID == 0x3F, bytes.count >= 12, bytes.first == reportID {
             return bytes.dropFirst()
         }
         if reportID == 0x21,
@@ -175,6 +181,33 @@ public struct JoyConReportParser: Sendable {
     /// its long axis, so its y and z point the other way.
     private static func normalizeLeftAxes(_ vector: Vector3) -> Vector3 {
         Vector3(x: vector.x, y: -vector.y, z: -vector.z)
+    }
+
+    /// Decodes a 0x3F report well enough to notice presses. The trigger,
+    /// shoulder, side and system buttons map to their logical buttons; the
+    /// four face buttons only need to be distinct from each other.
+    private func parseButtonOnlyFrame(payload: ArraySlice<UInt8>) -> JoyConInputFrame? {
+        let data = Array(payload)
+        guard data.count >= 3 else { return nil }
+        let face = data[0]
+        let system = data[1]
+        var buttons = Set<JoyConButton>()
+        Self.insert(.b, if: face & 0x01 != 0, into: &buttons)
+        Self.insert(.y, if: face & 0x02 != 0, into: &buttons)
+        Self.insert(.a, if: face & 0x04 != 0, into: &buttons)
+        Self.insert(.x, if: face & 0x08 != 0, into: &buttons)
+        // Physical SL and SR, swapped on the left controller as in 0x30.
+        Self.insert(side == .right ? .sl : .sr, if: face & 0x10 != 0, into: &buttons)
+        Self.insert(side == .right ? .sr : .sl, if: face & 0x20 != 0, into: &buttons)
+        let plus: UInt8 = side == .right ? 0x02 : 0x01
+        let stick: UInt8 = side == .right ? 0x08 : 0x04
+        let home: UInt8 = side == .right ? 0x10 : 0x20
+        Self.insert(.plus, if: system & plus != 0, into: &buttons)
+        Self.insert(.stick, if: system & stick != 0, into: &buttons)
+        Self.insert(.home, if: system & home != 0, into: &buttons)
+        Self.insert(.r, if: system & 0x40 != 0, into: &buttons)
+        Self.insert(.zr, if: system & 0x80 != 0, into: &buttons)
+        return JoyConInputFrame(buttons: buttons, stick: .zero, isButtonOnly: true)
     }
 
     private func parseSPIReply(payload: ArraySlice<UInt8>) -> SPIFlashReply? {

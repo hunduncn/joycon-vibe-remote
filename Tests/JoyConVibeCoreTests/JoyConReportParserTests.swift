@@ -157,6 +157,41 @@ final class JoyConReportParserTests: XCTestCase {
         XCTAssertEqual(leftSample.acceleration, Vector3(x: a.x, y: -a.y, z: -a.z))
     }
 
+    func testButtonOnlyReportMarksPressesWithoutMotion() throws {
+        // 0x3F: two button bytes, the stick hat, then filler.
+        let report: [UInt8] = [0x3F, 0x00, 0x80 | 0x40, 0x08, 0x00, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00, 0x80]
+        var right = JoyConReportParser()
+        let frame = try XCTUnwrap(right.decode(reportID: 0x3F, bytes: report)?.frame)
+        XCTAssertTrue(frame.isButtonOnly)
+        XCTAssertEqual(frame.buttons, [.zr, .r])
+        XCTAssertEqual(frame.gyroSamples, [])
+        XCTAssertEqual(frame.stick, .zero)
+
+        // Without the leading report ID, as some IOHID backends deliver it.
+        XCTAssertEqual(try XCTUnwrap(right.decode(reportID: 0x3F, bytes: Array(report.dropFirst()))?.frame).buttons, [.zr, .r])
+    }
+
+    func testButtonOnlyReportSideButtonsFollowTheSide() throws {
+        let report: [UInt8] = [0x3F, 0x20, 0x00, 0x08, 0, 0x80, 0, 0x80, 0, 0x80, 0, 0x80] // SR
+        var right = JoyConReportParser()
+        var left = JoyConReportParser(side: .left)
+        XCTAssertEqual(try XCTUnwrap(right.decode(reportID: 0x3F, bytes: report)?.frame).buttons, [.sr])
+        XCTAssertEqual(try XCTUnwrap(left.decode(reportID: 0x3F, bytes: report)?.frame).buttons, [.sl])
+    }
+
+    func testButtonOnlyReportNoticesEveryButton() throws {
+        var left = JoyConReportParser(side: .left)
+        var seen = Set<JoyConButton>()
+        for (index, bit) in [(1, 0x01), (1, 0x02), (1, 0x04), (1, 0x08), (2, 0x01), (2, 0x04), (2, 0x20)] {
+            var report: [UInt8] = [0x3F, 0, 0, 0x08, 0, 0x80, 0, 0x80, 0, 0x80, 0, 0x80]
+            report[index] = UInt8(bit)
+            let buttons = try XCTUnwrap(left.decode(reportID: 0x3F, bytes: report)?.frame).buttons
+            XCTAssertEqual(buttons.count, 1, "byte \(index) bit \(bit)")
+            seen.formUnion(buttons)
+        }
+        XCTAssertEqual(seen.count, 7, "each bit is a distinct button")
+    }
+
     private func centeredPayload() -> [UInt8] {
         var payload = [UInt8](repeating: 0, count: 48)
         putStick(x: 2048, y: 2048, in: &payload, at: 5)

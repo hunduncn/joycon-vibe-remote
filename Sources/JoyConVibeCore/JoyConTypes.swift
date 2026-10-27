@@ -94,19 +94,25 @@ public struct JoyConInputFrame: Equatable, Sendable {
     public var gyroSamples: [GyroSample]
     public var batteryLevel: Int
     public var isCharging: Bool
+    /// A 0x3F report from a controller on standby. It only says that buttons
+    /// changed: it has no motion, stick or battery, and the face buttons are
+    /// reported for a sideways grip, so their identity is not trusted.
+    public var isButtonOnly: Bool
 
     public init(
         buttons: Set<JoyConButton>,
         stick: StickPosition,
         gyroSamples: [GyroSample] = [],
         batteryLevel: Int = 0,
-        isCharging: Bool = false
+        isCharging: Bool = false,
+        isButtonOnly: Bool = false
     ) {
         self.buttons = buttons
         self.stick = stick
         self.gyroSamples = gyroSamples
         self.batteryLevel = batteryLevel
         self.isCharging = isCharging
+        self.isButtonOnly = isButtonOnly
     }
 }
 

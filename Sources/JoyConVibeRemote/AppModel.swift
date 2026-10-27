@@ -95,6 +95,8 @@ final class AppModel: ObservableObject {
     /// do nothing until released, so a button squashed on a standby
     /// controller never fires, repeats or moves the pointer on a hand-off.
     private var mustRelease = Set<JoyConButton>()
+    /// What each controller was last told: standby or full reports.
+    private var standbyState: [JoyConSide: Bool] = [:]
     private var deviceNames: [JoyConSide: String] = [:]
     private var telemetry: [JoyConSide: (level: Int, charging: Bool)] = [:]
     private var idlePolicies: [JoyConSide: IdleSleepPolicy] = [:]
@@ -178,6 +180,7 @@ final class AppModel: ObservableObject {
         transport.stop()
         arbiter.reset()
         heldButtons = [:]
+        standbyState = [:]
         mustRelease = []
         refreshControllers()
         telemetry = [:]
@@ -364,8 +367,12 @@ final class AppModel: ObservableObject {
         deviceNames[side] = name
         errorMessage = nil
         sleepRequested.remove(side)
-        idlePolicies[side] = IdleSleepPolicy()
+        // Start the idle timer now: on standby it may never send a report.
+        var idlePolicy = IdleSleepPolicy()
+        idlePolicy.record(JoyConInputFrame(buttons: [], stick: .zero), at: clock())
+        idlePolicies[side] = idlePolicy
         heldButtons[side] = nil
+        standbyState[side] = nil
         _ = arbiter.connect(side)
         refreshControllers()
         resumePointerTracking(side)
@@ -383,6 +390,7 @@ final class AppModel: ObservableObject {
         telemetry[side] = nil
         idlePolicies[side] = nil
         heldButtons[side] = nil
+        standbyState[side] = nil
         pointerEngines[side]?.resetMotion()
         if wasActive {
             releaseAllInputs()
@@ -421,6 +429,12 @@ final class AppModel: ObservableObject {
         if isConnected != connected { isConnected = connected }
         let name = deviceName(for: active ?? .right)
         if deviceName != name { deviceName = name }
+        for side in arbiter.connected {
+            let isStandby = side != active
+            guard standbyState[side] != isStandby else { continue }
+            standbyState[side] = isStandby
+            transport.setStandby(side, isStandby)
+        }
     }
 
     private func showTelemetry(of side: JoyConSide) {
@@ -440,7 +454,9 @@ final class AppModel: ObservableObject {
         let timestamp = clock()
         let heldBefore = heldButtons[side]
         heldButtons[side] = incoming.buttons
-        telemetry[side] = (incoming.batteryLevel, incoming.isCharging)
+        if !incoming.isButtonOnly {
+            telemetry[side] = (incoming.batteryLevel, incoming.isCharging)
+        }
         idlePolicies[side, default: IdleSleepPolicy()].record(incoming, at: timestamp)
         var frame = incoming
 
@@ -452,7 +468,12 @@ final class AppModel: ObservableObject {
             return
         case let .switchTo(next):
             // The press that switched acts; anything held before it waits.
-            mustRelease = (heldBefore ?? frame.buttons).intersection(frame.buttons)
+            // A press seen in a standby report only switches: full reports
+            // resume shortly and a button still held then acts.
+            mustRelease = frame.isButtonOnly
+                ? []
+                : (heldBefore ?? frame.buttons).intersection(frame.buttons)
+            if frame.isButtonOnly { heldButtons[next] = nil }
             if let previous = activeSide, previous != next {
                 modelLog.notice("switch \(previous.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public)")
                 releaseAllInputs()
@@ -460,10 +481,14 @@ final class AppModel: ObservableObject {
                 pointerEngines[previous]?.resetMotion()
             }
             refreshControllers()
+            showTelemetry(of: next)
             resumePointerTracking(next)
         case .accept:
             break
         }
+        // Standby reports carry no motion and untrusted face buttons; they
+        // only matter for switching.
+        guard !frame.isButtonOnly else { return }
         mustRelease.formIntersection(frame.buttons)
         frame.buttons.subtract(mustRelease)
 

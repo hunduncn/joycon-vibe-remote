@@ -267,4 +267,90 @@ final class ControllerSwitchingTests: XCTestCase {
             XCTAssertEqual(model.activeSide, .left)
         }
     }
+
+    func testStandbyControllerIsPutInButtonOnlyMode() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            XCTAssertEqual(harness.transport.standby[.right], false)
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            XCTAssertEqual(harness.transport.standby, [.right: false, .left: true])
+
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([]))
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([.a]))
+            XCTAssertEqual(model.activeSide, .left)
+            XCTAssertEqual(harness.transport.standby, [.right: true, .left: false])
+        }
+    }
+
+    func testButtonOnlySwitchingPressActsOnlyIfStillHeldWhenFullReportsResume() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([]))
+            harness.actions.removeAll()
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([.a]))
+            XCTAssertEqual(model.activeSide, .left)
+            XCTAssertEqual(harness.actions, [], "identity of a 0x3F press is not trusted")
+
+            harness.transport.onFrame?(.left, TestFrames.pressing([.a]))
+            XCTAssertTrue(harness.actions.contains(.keyTap(.escape)), "\(harness.actions)")
+        }
+    }
+
+    func testQuickSwitchingTapOnlySwitches() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([]))
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([.y]))
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([]))
+            harness.transport.onFrame?(.left, TestFrames.pressing([]))
+            XCTAssertEqual(model.activeSide, .left)
+            XCTAssertEqual(harness.actions, [])
+        }
+    }
+
+    func testFallbackLeavesButtonOnlyMode() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            harness.transport.onDisconnected?(.right)
+            XCTAssertEqual(model.activeSide, .left)
+            XCTAssertEqual(harness.transport.standby[.left], false)
+        }
+    }
+
+    func testButtonOnlyReportsFromTheActiveControllerDoNothing() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            harness.actions.removeAll()
+            harness.transport.onFrame?(.right, TestFrames.buttonOnly([.a]))
+            XCTAssertEqual(harness.actions, [])
+            XCTAssertEqual(model.status, .connected)
+        }
+    }
+
+    func testSilentStandbyControllerStillIdleSleeps() {
+        withModel { model, harness in
+            model.settings.idleSleepMinutes = 30
+            connectCalibrated(.right, harness)
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            harness.now += 20 * 60
+            harness.transport.onFrame?(.right, TestFrames.pressing([.a]))
+            model.checkIdleSleep(at: harness.now + 11 * 60)
+            XCTAssertEqual(harness.transport.sleptSides, [.left])
+        }
+    }
+
+    func testStandbyReportsKeepTheLastKnownBattery() {
+        withModel { model, harness in
+            connectCalibrated(.right, harness)
+            harness.transport.onConnected?(.left, "Joy-Con (L)")
+            harness.transport.onFrame?(.left, JoyConInputFrame(buttons: [], stick: .zero, batteryLevel: 2))
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([.r]))
+            harness.transport.onFrame?(.left, TestFrames.buttonOnly([]))
+            harness.transport.onDisconnected?(.right)
+            XCTAssertEqual(model.batteryLevel, 2)
+        }
+    }
 }

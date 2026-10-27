@@ -13,10 +13,15 @@ final class FakeTransport: JoyConTransport {
     var startCount = 0
     var stopCount = 0
     var sleptSides: [JoyConSide] = []
+    var standby: [JoyConSide: Bool] = [:]
     var sleepCount: Int { sleptSides.count }
 
     func requestSleep(_ side: JoyConSide) {
         sleptSides.append(side)
+    }
+
+    func setStandby(_ side: JoyConSide, _ isStandby: Bool) {
+        standby[side] = isStandby
     }
 
     func start() {
@@ -44,5 +49,10 @@ enum TestFrames {
 
     static func pressing(_ buttons: Set<JoyConButton>) -> JoyConInputFrame {
         JoyConInputFrame(buttons: buttons, stick: .zero)
+    }
+
+    /// A 0x3F report from a controller on standby: buttons only.
+    static func buttonOnly(_ buttons: Set<JoyConButton>) -> JoyConInputFrame {
+        JoyConInputFrame(buttons: buttons, stick: .zero, isButtonOnly: true)
     }
 }
