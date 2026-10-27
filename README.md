@@ -94,25 +94,21 @@ The same mapping is listed in English under [Default button mapping](#default-bu
 
 ## Screenshots
 
-The screenshots follow GitHub's light or dark theme.
-
 ### Menu bar panel
 
 Click the menu bar icon to see the connection and battery, toggle the remote, and jump to any settings page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/menu-bar-popover-dark.png">
   <img src="docs/assets/screenshots/menu-bar-popover.png" alt="Menu bar panel: connection status, battery, remote toggle and settings shortcuts" width="420">
 </picture>
 
 ### Button Mapping
 
-Set each button's "press" and "hold layer key" actions on a drawing of the controller. The Right controller | Left controller
-(右手柄 | 左手柄) switch at the top picks which one you are editing, starting with the one in use. Pressing a button on
+Set each button's "press" and "hold layer key" actions on a drawing of the controller. The Left controller | Right controller
+(左手柄 | 右手柄) switch at the top picks which one you are editing, starting with the one in use. Pressing a button on
 the Joy-Con highlights its card and leader line.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-dark.png">
   <img src="docs/assets/screenshots/settings-mapping.png" alt="Button Mapping page: a controller drawing in the middle with a settings card for each button on both sides">
 </picture>
 
@@ -121,7 +117,6 @@ the Joy-Con highlights its card and leader line.
 Connection, battery, zero-point calibration, live input, and a pre-flight checklist with a button for each missing permission.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-status-dark.png">
   <img src="docs/assets/screenshots/settings-status.png" alt="Status page: connection and battery, calibration progress, live input and the pre-flight checklist">
 </picture>
 
@@ -130,7 +125,6 @@ Connection, battery, zero-point calibration, live input, and a pre-flight checkl
 A diagram explains how wrist movements map to the cursor. Every slider has a description, and a tick marks its default value.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-motion-dark.png">
   <img src="docs/assets/screenshots/settings-motion.png" alt="Motion page: direction diagram, invert switches and five feel sliders">
 </picture>
 
@@ -139,7 +133,6 @@ A diagram explains how wrist movements map to the cursor. Every slider has a des
 Launch at login, idle sleep, permission status, reset to defaults, and version information.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-general-dark.png">
   <img src="docs/assets/screenshots/settings-general.png" alt="General page: launch and power saving, system permissions, reset and about">
 </picture>
 
@@ -185,14 +178,14 @@ automatically; you do not need the invert switches.
 Each controller keeps its own button mapping; switch between them at the top of the Button Mapping page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-left-dark.png">
   <img src="docs/assets/screenshots/settings-mapping-left.png" alt="Button Mapping page with the left controller selected">
 </picture>
 
 **With both connected:** whichever you press a button on takes over. Pick up the other one and press any
-button to switch; the idle one is shown as standby (待机). Bumping a stick or moving a controller never
+button to switch (that press only switches; it acts if you keep holding it); the idle one is shown as standby (待机). Bumping a stick or moving a controller never
 switches, and neither does pressing the other controller while you hold the trigger or any other button.
-If the controller in use disconnects or goes to sleep, the other one takes over. Sleep now (立即休眠) puts
+The standby controller only reports button presses, so two connected controllers do not make motion
+stutter. If the controller in use disconnects or goes to sleep, the other one takes over. Sleep now (立即休眠) puts
 every connected controller to sleep.
 
 ## Requirements

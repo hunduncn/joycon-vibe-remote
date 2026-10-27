@@ -81,24 +81,20 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 
 ## 界面预览
 
-截图会跟随 GitHub 的浅色/深色主题切换。
-
 ### 菜单栏面板
 
 点击菜单栏图标，查看连接状态和电量、开关遥控，并直达各个设置页。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/menu-bar-popover-dark.png">
   <img src="docs/assets/screenshots/menu-bar-popover.png" alt="菜单栏面板：连接状态、电量、遥控开关和设置入口" width="420">
 </picture>
 
 ### 按键映射
 
-对着手柄示意图设置每个按键的「单按」和「按住副层键」动作。顶部的「右手柄 | 左手柄」切换要设置哪一只，
+对着手柄示意图设置每个按键的「单按」和「按住副层键」动作。顶部的「左手柄 | 右手柄」切换要设置哪一只，
 打开时自动选中正在用的那只。按下手柄上的键，对应的卡片和引导线会高亮。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-dark.png">
   <img src="docs/assets/screenshots/settings-mapping.png" alt="设置窗口的按键映射页：中间是手柄示意图，两侧是每个按键的设置卡片">
 </picture>
 
@@ -107,7 +103,6 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 连接、电量、零点校准、实时输入，以及「使用前检查」：缺哪项权限就给出对应按钮。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-status-dark.png">
   <img src="docs/assets/screenshots/settings-status.png" alt="设置窗口的状态页：连接与电量、校准进度、实时输入和使用前检查">
 </picture>
 
@@ -116,7 +111,6 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 用示意图说明手腕动作和光标方向；每个滑块都附有说明，小竖线标出默认值。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-motion-dark.png">
   <img src="docs/assets/screenshots/settings-motion.png" alt="设置窗口的体感调节页：方向示意图、反向开关和五个手感滑块">
 </picture>
 
@@ -125,7 +119,6 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 登录时启动、闲置自动休眠、系统权限状态、恢复全部默认设置和版本信息。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-general-dark.png">
   <img src="docs/assets/screenshots/settings-general.png" alt="设置窗口的通用页：启动与省电、系统权限、重置和关于">
 </picture>
 
@@ -169,13 +162,12 @@ ZR + SL 的精准体感组合优先于 SL Agent 副层，不会误触发副层�
 左右手柄的按键映射各存一套，在「按键映射」页顶部切换后分别设置。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-left-dark.png">
   <img src="docs/assets/screenshots/settings-mapping-left.png" alt="按键映射页选中左手柄：左手柄示意图和左手柄的按键卡片">
 </picture>
 
-**两只同时连着时：**谁按键就用谁。拿起另一只按任意键就切换过去，另一只显示为「待机」；
+**两只同时连着时：**谁按键就用谁。拿起另一只按任意键就切换过去（这一下只负责切换，按住不放才会触发它的动作），另一只显示为「待机」；
 摇杆被碰到或手柄被晃动都不会切换，正按着扳机移动光标或按着其他键时也不会切换。
-正在用的那只断开或休眠后，会自动改用另一只。「立即休眠」会让所有已连接的手柄一起休眠。
+待机的那只只在按键时才发送数据，两只同时连着也不会让体感变卡。正在用的那只断开或休眠后，会自动改用另一只。「立即休眠」会让所有已连接的手柄一起休眠。
 
 ## 系统要求
 
