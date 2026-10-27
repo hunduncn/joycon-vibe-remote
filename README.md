@@ -70,6 +70,8 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 - **Agent 副层：**按住 SL 后可换行但不发送、强制中断、反向切换焦点，并用
   摇杆操作真正的上下方向键。
 - **命令符号：**按住 SL 连点 Home，依次输入 `/`、`@`、`$`、`!`。
+- **闲置休眠：**手柄闲置一段时间（默认 30 分钟）后自动断开蓝牙省电，按任意键即可唤醒并重新连上，
+  无需再次校准。
 - **设置窗口：**菜单栏面板中点「打开设置…」，在「状态」「体感调节」「按键映射」「通用」四页里查看连接与校准、调节手感，
   并对着手柄示意图分别设置每个按键的“单按”和“按住 SL 后”动作；按下手柄上的键，对应设置会自动高亮。
 
@@ -115,11 +117,11 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 
 ### 通用
 
-登录时启动、系统权限状态、恢复全部默认设置和版本信息。
+登录时启动、闲置自动休眠、系统权限状态、恢复全部默认设置和版本信息。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-general-dark.png">
-  <img src="docs/assets/screenshots/settings-general.png" alt="设置窗口的通用页：启动、系统权限、重置和关于">
+  <img src="docs/assets/screenshots/settings-general.png" alt="设置窗口的通用页：启动与省电、系统权限、重置和关于">
 </picture>
 
 ## 默认按键映射
@@ -161,6 +163,9 @@ ZR + SL 的精准体感组合优先于 SL Agent 副层，不会误触发副层�
 请先退出 App，再从安装位置启动。
 
 “登录时启动”在设置窗口的「通用」页；若等待系统批准，页面会显示提示，取消勾选会撤销待批准的注册。
+
+同一页可以设置“闲置自动休眠”（关闭 / 10 分钟 / 30 分钟 / 1 小时），也可以点「立即休眠」。
+手柄休眠后菜单栏图标变为月亮，按 Joy-Con 任意键即可唤醒。
 
 ## 从源码构建
 
@@ -214,6 +219,8 @@ open "$HOME/Applications/Joy-Con Vibe Remote.app"
 ```
 
 生成的文件位于 `.build/dmg/Joy-Con-Vibe-Remote-<版本号>.dmg`，版本号取自 `Resources/Info.plist`。
+脚本会在项目内的 `.build/dmg-tools` 安装 dmgbuild 排布安装窗口，并通过访达设置背景图：
+打包时访达窗口会短暂弹出，首次运行可能需要允许终端控制访达。
 
 ## macOS 听写设置
 
