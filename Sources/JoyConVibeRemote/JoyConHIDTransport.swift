@@ -6,7 +6,6 @@ import os
 let transportLog = Logger(subsystem: "com.aqxp.JoyConVibeRemote", category: "transport")
 
 private let nintendoVendorID = 0x057E
-private let rightJoyConProductID = 0x2007
 
 /// Delivers reports from up to one left and one right Joy-Con. Every event
 /// names the controller it came from.
@@ -32,7 +31,7 @@ final class JoyConHIDTransport: JoyConTransport {
     var onError: ((String) -> Void)?
 
     private var manager: IOHIDManager?
-    private var session: JoyConHIDSession?
+    private var sessions: [JoyConSide: JoyConHIDSession] = [:]
     private(set) var isRunning = false
 
     deinit {
@@ -49,13 +48,15 @@ final class JoyConHIDTransport: JoyConTransport {
         // so turning the remote off and on never reconnected. Start fresh.
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         self.manager = manager
-        let matching: [String: Any] = [
-            kIOHIDVendorIDKey: nintendoVendorID,
-            kIOHIDProductIDKey: rightJoyConProductID,
-            kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop,
-            kIOHIDDeviceUsageKey: kHIDUsage_GD_GamePad
-        ]
-        IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
+        let matching: [[String: Any]] = JoyConSide.allCases.map { side in
+            [
+                kIOHIDVendorIDKey: nintendoVendorID,
+                kIOHIDProductIDKey: side.productID,
+                kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop,
+                kIOHIDDeviceUsageKey: kHIDUsage_GD_GamePad
+            ]
+        }
+        IOHIDManagerSetDeviceMatchingMultiple(manager, matching as CFArray)
 
         let context = Unmanaged.passUnretained(self).toOpaque()
         IOHIDManagerRegisterDeviceMatchingCallback(manager, joyConDeviceMatched, context)
@@ -71,7 +72,7 @@ final class JoyConHIDTransport: JoyConTransport {
             // Opening can fail after callbacks have already been scheduled.
             // Tear those down before allowing a later permission retry.
             stop()
-            onError?("无法读取右 Joy-Con（IOKit 错误 \(result)）。请授予输入监控权限后点击「重新连接」；若系统要求退出并重新打开，请重启 App。")
+            onError?("无法读取 Joy-Con（IOKit 错误 \(result)）。请授予输入监控权限后点击「重新连接」；若系统要求退出并重新打开，请重启 App。")
         }
     }
 
@@ -79,8 +80,8 @@ final class JoyConHIDTransport: JoyConTransport {
         guard isRunning else { return }
         isRunning = false
         transportLog.notice("transport stop")
-        session?.stop()
-        session = nil
+        sessions.values.forEach { $0.stop() }
+        sessions = [:]
         guard let manager else { return }
         self.manager = nil
         IOHIDManagerRegisterDeviceMatchingCallback(manager, nil, nil)
@@ -94,36 +95,39 @@ final class JoyConHIDTransport: JoyConTransport {
     }
 
     func requestSleep(_ side: JoyConSide) {
-        transportLog.notice("sleep requested, session=\(self.session != nil)")
-        session?.requestSleep()
+        transportLog.notice("sleep requested \(side.rawValue, privacy: .public), session=\(self.sessions[side] != nil)")
+        sessions[side]?.requestSleep()
     }
 
     fileprivate func didMatch(device: IOHIDDevice) {
-        transportLog.notice("device matched, running=\(self.isRunning), hasSession=\(self.session != nil)")
-        guard isRunning, session == nil else { return }
+        let productID = (IOHIDDeviceGetProperty(device, kIOHIDProductIDKey as CFString) as? NSNumber)?.intValue
+        guard let side = JoyConSide.allCases.first(where: { $0.productID == productID }) else { return }
+        transportLog.notice("device matched \(side.rawValue, privacy: .public), running=\(self.isRunning), hasSession=\(self.sessions[side] != nil)")
+        guard isRunning, sessions[side] == nil else { return }
         let productName = IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String
-            ?? "Joy-Con (R)"
-        let newSession = JoyConHIDSession(device: device)
+            ?? side.defaultName
+        let newSession = JoyConHIDSession(device: device, side: side)
         newSession.onFrame = { [weak self] frame in
-            self?.onFrame?(.right, frame)
+            self?.onFrame?(side, frame)
         }
         newSession.onRecovering = { [weak self] in
-            self?.onRecovering?(.right)
+            self?.onRecovering?(side)
         }
         newSession.onError = { [weak self] message in
             self?.onError?(message)
         }
-        session = newSession
+        sessions[side] = newSession
         newSession.start()
-        onConnected?(.right, productName)
+        onConnected?(side, productName)
     }
 
     fileprivate func didRemove(device: IOHIDDevice) {
-        transportLog.notice("device removed, ownsSession=\(self.session.map { CFEqual($0.device, device) } ?? false)")
-        guard let session, CFEqual(session.device, device) else { return }
+        let owner = sessions.first { CFEqual($0.value.device, device) }
+        transportLog.notice("device removed, owner=\(owner?.key.rawValue ?? "none", privacy: .public)")
+        guard let (side, session) = owner else { return }
         session.stop()
-        self.session = nil
-        onDisconnected?(.right)
+        sessions[side] = nil
+        onDisconnected?(side)
     }
 }
 
@@ -149,11 +153,12 @@ private func joyConDeviceRemoved(
 
 private final class JoyConHIDSession {
     let device: IOHIDDevice
+    let side: JoyConSide
     var onFrame: ((JoyConInputFrame) -> Void)?
     var onRecovering: (() -> Void)?
     var onError: ((String) -> Void)?
 
-    private var parser = JoyConReportParser()
+    private var parser: JoyConReportParser
     private let reportBuffer: UnsafeMutablePointer<UInt8>
     private let reportBufferSize: Int
     private var packetCounter: UInt8 = 0
@@ -161,8 +166,10 @@ private final class JoyConHIDSession {
     private var streamWatchdog = JoyConStreamWatchdog()
     private var isRecoveringStream = false
 
-    init(device: IOHIDDevice) {
+    init(device: IOHIDDevice, side: JoyConSide) {
         self.device = device
+        self.side = side
+        parser = JoyConReportParser(side: side)
         let configuredSize = (IOHIDDeviceGetProperty(
             device,
             kIOHIDMaxInputReportSizeKey as CFString
@@ -192,7 +199,7 @@ private final class JoyConHIDSession {
         // Joy-Con accepts subcommands serially. Small gaps keep initialization
         // reliable over Bluetooth while reports begin streaming.
         schedule(after: 0.05) { $0.readSPI(address: 0x6020, length: 0x18) }
-        schedule(after: 0.14) { $0.readSPI(address: 0x6046, length: 0x09) }
+        schedule(after: 0.14) { $0.readSPI(address: $0.side.stickCalibrationAddress, length: 0x09) }
         schedule(after: 0.24) { $0.sendStreamConfiguration() }
         scheduleStreamWatchdogTick()
     }
@@ -231,7 +238,7 @@ private final class JoyConHIDSession {
             let now = ProcessInfo.processInfo.systemUptime
             if session.streamWatchdog.shouldRecover(at: now) {
                 if !session.isRecoveringStream {
-                    transportLog.notice("input stream stalled; reconfiguring")
+                    transportLog.notice("input stream stalled on \(session.side.rawValue, privacy: .public); reconfiguring")
                     session.isRecoveringStream = true
                     session.onRecovering?()
                 }
