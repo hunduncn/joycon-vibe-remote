@@ -8,25 +8,27 @@ let transportLog = Logger(subsystem: "com.aqxp.JoyConVibeRemote", category: "tra
 private let nintendoVendorID = 0x057E
 private let rightJoyConProductID = 0x2007
 
+/// Delivers reports from up to one left and one right Joy-Con. Every event
+/// names the controller it came from.
 protocol JoyConTransport: AnyObject {
-    var onConnected: ((String) -> Void)? { get set }
-    var onDisconnected: (() -> Void)? { get set }
-    var onRecovering: (() -> Void)? { get set }
-    var onFrame: ((JoyConInputFrame) -> Void)? { get set }
+    var onConnected: ((JoyConSide, String) -> Void)? { get set }
+    var onDisconnected: ((JoyConSide) -> Void)? { get set }
+    var onRecovering: ((JoyConSide) -> Void)? { get set }
+    var onFrame: ((JoyConSide, JoyConInputFrame) -> Void)? { get set }
     var onError: ((String) -> Void)? { get set }
     var isRunning: Bool { get }
     func start()
     func stop()
-    /// Asks the controller to drop its Bluetooth link and sleep. It wakes
+    /// Asks a controller to drop its Bluetooth link and sleep. It wakes
     /// and reconnects when any button is pressed.
-    func requestSleep()
+    func requestSleep(_ side: JoyConSide)
 }
 
 final class JoyConHIDTransport: JoyConTransport {
-    var onConnected: ((String) -> Void)?
-    var onDisconnected: (() -> Void)?
-    var onRecovering: (() -> Void)?
-    var onFrame: ((JoyConInputFrame) -> Void)?
+    var onConnected: ((JoyConSide, String) -> Void)?
+    var onDisconnected: ((JoyConSide) -> Void)?
+    var onRecovering: ((JoyConSide) -> Void)?
+    var onFrame: ((JoyConSide, JoyConInputFrame) -> Void)?
     var onError: ((String) -> Void)?
 
     private var manager: IOHIDManager?
@@ -91,7 +93,7 @@ final class JoyConHIDTransport: JoyConTransport {
         IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
     }
 
-    func requestSleep() {
+    func requestSleep(_ side: JoyConSide) {
         transportLog.notice("sleep requested, session=\(self.session != nil)")
         session?.requestSleep()
     }
@@ -103,17 +105,17 @@ final class JoyConHIDTransport: JoyConTransport {
             ?? "Joy-Con (R)"
         let newSession = JoyConHIDSession(device: device)
         newSession.onFrame = { [weak self] frame in
-            self?.onFrame?(frame)
+            self?.onFrame?(.right, frame)
         }
         newSession.onRecovering = { [weak self] in
-            self?.onRecovering?()
+            self?.onRecovering?(.right)
         }
         newSession.onError = { [weak self] message in
             self?.onError?(message)
         }
         session = newSession
         newSession.start()
-        onConnected?(productName)
+        onConnected?(.right, productName)
     }
 
     fileprivate func didRemove(device: IOHIDDevice) {
@@ -121,7 +123,7 @@ final class JoyConHIDTransport: JoyConTransport {
         guard let session, CFEqual(session.device, device) else { return }
         session.stop()
         self.session = nil
-        onDisconnected?()
+        onDisconnected?(.right)
     }
 }
 

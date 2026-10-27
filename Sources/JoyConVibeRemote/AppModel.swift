@@ -26,7 +26,7 @@ enum RemoteStatus: Equatable {
 
     var title: String {
         switch self {
-        case .disconnected: return "等待右 Joy-Con"
+        case .disconnected: return "等待 Joy-Con"
         case .initializing: return "正在初始化"
         case .calibrating: return "请将手柄静置"
         case .connected: return "已连接"
@@ -64,6 +64,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var loginItemMessage: String?
     @Published private(set) var isConnected = false
     @Published private(set) var inputMonitoringAccess = InputMonitoringAccess.undetermined
+    /// The controller whose input is used. Whoever presses a button takes over.
+    @Published private(set) var activeSide: JoyConSide?
+    /// The other controller, while it is connected but not in use.
+    @Published private(set) var standbySide: JoyConSide?
 
     let settings: RemoteSettings
     let liveInput = LiveInput()
@@ -76,22 +80,33 @@ final class AppModel: ObservableObject {
     private let managesLoginItem: Bool
     private lazy var pointerMotionEmitter = PointerMotionEmitter(eventEmitter: eventEmitter)
     private var mapper = RemoteActionMapper()
-    private var pointerEngine = GyroPointerEngine()
+    // Each controller keeps its own gyro zero, so switching never applies one
+    // controller's bias to the other.
+    private var pointerEngines: [JoyConSide: GyroPointerEngine] = [:]
     private var pointerFrameBuffer = ClutchedPointerFrameBuffer()
     private var pointerTuningLifecycle = PointerTuningLifecycle()
     private let transport: any JoyConTransport
     private var hasStarted = false
-    private var idlePolicy = IdleSleepPolicy()
-    private var sleepRequested = false
+    private var arbiter = ActiveControllerArbiter()
+    private var deviceNames: [JoyConSide: String] = [:]
+    private var telemetry: [JoyConSide: (level: Int, charging: Bool)] = [:]
+    private var idlePolicies: [JoyConSide: IdleSleepPolicy] = [:]
+    private var sleepRequested = Set<JoyConSide>()
     private var idleTimer: Timer?
+    private let actionSink: ((RemoteAction) -> Void)?
+    private let clock: () -> TimeInterval
 
     init(
         settings: RemoteSettings,
         transport: (any JoyConTransport)? = nil,
         loginItemManager: LoginItemManager? = nil,
-        managesLoginItem: Bool = Bundle.main.bundleURL.pathExtension == "app"
+        managesLoginItem: Bool = Bundle.main.bundleURL.pathExtension == "app",
+        actionSink: ((RemoteAction) -> Void)? = nil,
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
         self.settings = settings
+        self.actionSink = actionSink
+        self.clock = clock
         self.transport = transport ?? JoyConHIDTransport()
         self.loginItemManager = loginItemManager ?? LoginItemManager()
         self.managesLoginItem = managesLoginItem
@@ -124,7 +139,7 @@ final class AppModel: ObservableObject {
             reconnect()
         } else {
             releaseAllInputs()
-            pointerEngine.resetMotion()
+            for side in pointerEngines.keys { pointerEngines[side]?.resetMotion() }
             pointerFrameBuffer.reset()
             if isConnected { updateStatus(.paused) }
         }
@@ -154,16 +169,19 @@ final class AppModel: ObservableObject {
         hasStarted = true
         releaseAllInputs()
         transport.stop()
-        isConnected = false
+        arbiter.reset()
+        refreshControllers()
+        telemetry = [:]
+        sleepRequested = []
         updateTelemetry(batteryLevel: 0, isCharging: false)
-        pointerEngine.beginCalibration()
+        pointerEngines = [:]
         errorMessage = nil
         updateStatus(.disconnected)
         transport.start()
     }
 
     func recalibrate() {
-        pointerEngine.beginCalibration()
+        if let activeSide { pointerEngines[activeSide, default: GyroPointerEngine()].beginCalibration() }
         pointerFrameBuffer.reset()
         pointerMotionEmitter.reset()
         updateStatus(.calibrating(0))
@@ -181,16 +199,22 @@ final class AppModel: ObservableObject {
     /// The gyro zero measured earlier stays valid: it is refined whenever the
     /// controller rests between clutches, and a woken controller is usually
     /// already in hand, where a stationary recalibration would never finish.
-    private func resumePointerTracking() {
-        if pointerEngine.calibrationState == .ready {
-            restartPointerMotion()
+    private func resumePointerTracking(_ side: JoyConSide) {
+        var engine = pointerEngines[side] ?? GyroPointerEngine()
+        if engine.calibrationState == .ready {
+            engine.resetMotion()
         } else {
-            pointerEngine.beginCalibration()
+            engine.beginCalibration()
+        }
+        pointerEngines[side] = engine
+        if side == activeSide {
+            pointerFrameBuffer.reset()
+            pointerMotionEmitter.reset()
         }
     }
 
     private func restartPointerMotion() {
-        pointerEngine.resetMotion()
+        for side in pointerEngines.keys { pointerEngines[side]?.resetMotion() }
         pointerFrameBuffer.reset()
         pointerMotionEmitter.reset()
     }
@@ -212,19 +236,36 @@ final class AppModel: ObservableObject {
         status = newStatus
     }
 
-    /// Puts the controller to sleep once it has gone untouched for the
+    /// Puts each controller to sleep once it has gone untouched for the
     /// configured time, to save its battery.
-    func checkIdleSleep(at now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+    func checkIdleSleep(at now: TimeInterval? = nil) {
+        let now = now ?? clock()
         let timeout = TimeInterval(settings.idleSleepMinutes) * 60
-        guard isConnected, !sleepRequested, idlePolicy.shouldSleep(at: now, timeout: timeout) else { return }
-        sleepController()
+        for side in JoyConSide.allCases
+        where arbiter.connected.contains(side)
+            && !sleepRequested.contains(side)
+            && idlePolicies[side, default: IdleSleepPolicy()].shouldSleep(at: now, timeout: timeout)
+        {
+            sleep(side)
+        }
     }
 
+    /// Sleeps every connected controller.
     func sleepController() {
-        guard isConnected else { return }
-        sleepRequested = true
-        releaseAllInputs()
-        transport.requestSleep()
+        for side in JoyConSide.allCases where arbiter.connected.contains(side) {
+            sleep(side)
+        }
+    }
+
+    private func sleep(_ side: JoyConSide) {
+        modelLog.notice("sleep \(side.rawValue, privacy: .public)")
+        sleepRequested.insert(side)
+        if side == activeSide { releaseAllInputs() }
+        transport.requestSleep(side)
+    }
+
+    func deviceName(for side: JoyConSide) -> String {
+        deviceNames[side] ?? side.defaultName
     }
 
     func openSettings(_ page: SettingsPage) {
@@ -282,35 +323,22 @@ final class AppModel: ObservableObject {
     }
 
     private func configureTransport() {
-        transport.onConnected = { [weak self] name in
-            guard let self else { return }
-            self.isConnected = true
-            self.deviceName = name
-            self.errorMessage = nil
-            self.sleepRequested = false
-            self.idlePolicy.reset()
-            self.resumePointerTracking()
-            self.updateStatus(.initializing)
+        transport.onConnected = { [weak self] side, name in
+            self?.controllerConnected(side, name: name)
         }
-        transport.onDisconnected = { [weak self] in
-            guard let self else { return }
-            self.isConnected = false
-            // A controller we put to sleep is not lost; say how to wake it.
-            self.updateStatus(self.sleepRequested ? .sleeping : .disconnected)
-            self.sleepRequested = false
-            self.updateTelemetry(batteryLevel: 0, isCharging: false)
-            self.releaseAllInputs()
-            self.pointerEngine.resetMotion()
-            self.liveInput.reset()
+        transport.onDisconnected = { [weak self] side in
+            self?.controllerDisconnected(side)
         }
-        transport.onRecovering = { [weak self] in
-            guard let self, self.isConnected else { return }
-            self.releaseAllInputs()
-            self.resumePointerTracking()
-            self.updateStatus(.initializing)
+        transport.onRecovering = { [weak self] side in
+            guard let self, self.arbiter.connected.contains(side) else { return }
+            if side == self.activeSide {
+                self.releaseAllInputs()
+                self.updateStatus(.initializing)
+            }
+            self.resumePointerTracking(side)
         }
-        transport.onFrame = { [weak self] frame in
-            self?.handle(frame: frame)
+        transport.onFrame = { [weak self] side, frame in
+            self?.handle(frame: frame, from: side)
         }
         transport.onError = { [weak self] message in
             guard let self else { return }
@@ -319,13 +347,109 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func handle(frame: JoyConInputFrame) {
+    private func controllerConnected(_ side: JoyConSide, name: String) {
+        modelLog.notice("connected \(side.rawValue, privacy: .public)")
+        let wasActive = activeSide
+        deviceNames[side] = name
+        errorMessage = nil
+        sleepRequested.remove(side)
+        idlePolicies[side] = IdleSleepPolicy()
+        _ = arbiter.connect(side)
+        refreshControllers()
+        resumePointerTracking(side)
+        if wasActive == nil, activeSide == side {
+            updateStatus(.initializing)
+        }
+    }
+
+    private func controllerDisconnected(_ side: JoyConSide) {
+        guard arbiter.connected.contains(side) else { return }
+        modelLog.notice("disconnected \(side.rawValue, privacy: .public)")
+        let wasActive = side == activeSide
+        // A controller we put to sleep is not lost; say how to wake it.
+        let wasAsleep = sleepRequested.remove(side) != nil
+        telemetry[side] = nil
+        idlePolicies[side] = nil
+        pointerEngines[side]?.resetMotion()
+        if wasActive {
+            releaseAllInputs()
+            liveInput.reset()
+        }
+        _ = arbiter.disconnect(side)
+        refreshControllers()
+        guard wasActive else { return }
+        if let next = activeSide {
+            modelLog.notice("switch \(side.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public)")
+            showTelemetry(of: next)
+            resumePointerTracking(next)
+            updateStatus(calibratedStatus(for: next))
+        } else {
+            updateStatus(wasAsleep ? .sleeping : .disconnected)
+        }
+    }
+
+    private func keepCalibrating(_ side: JoyConSide, with frame: JoyConInputFrame) {
+        let pointerSettings = settings.pointerSettings(screenWidthPoints: activeScreenWidthPoints)
+        var engine = pointerEngines[side] ?? GyroPointerEngine()
+        for sample in frame.gyroSamples {
+            _ = engine.process(sample: sample, isActive: false, isPrecision: false, settings: pointerSettings)
+        }
+        pointerEngines[side] = engine
+    }
+
+    /// Mirrors the arbiter into the published controller state.
+    private func refreshControllers() {
+        let active = arbiter.active
+        if activeSide != active { activeSide = active }
+        let standby = arbiter.connected.subtracting(active.map { [$0] } ?? []).first
+        if standbySide != standby { standbySide = standby }
+        let connected = !arbiter.connected.isEmpty
+        if isConnected != connected { isConnected = connected }
+        let name = deviceName(for: active ?? .right)
+        if deviceName != name { deviceName = name }
+    }
+
+    private func showTelemetry(of side: JoyConSide) {
+        let reading = telemetry[side] ?? (0, false)
+        updateTelemetry(batteryLevel: reading.level, isCharging: reading.charging)
+    }
+
+    private func calibratedStatus(for side: JoyConSide) -> RemoteStatus {
+        switch pointerEngines[side]?.calibrationState {
+        case let .calibrating(progress)?: return .calibrating(progress)
+        case .ready?: return .connected
+        case nil: return .calibrating(0)
+        }
+    }
+
+    private func handle(frame: JoyConInputFrame, from side: JoyConSide) {
+        let timestamp = clock()
+        telemetry[side] = (frame.batteryLevel, frame.isCharging)
+        idlePolicies[side, default: IdleSleepPolicy()].record(frame, at: timestamp)
+
+        switch arbiter.route(frame, from: side) {
+        case .ignore:
+            // A controller resting on standby still settles its own gyro zero,
+            // so picking it up works without a stationary recalibration.
+            keepCalibrating(side, with: frame)
+            return
+        case let .switchTo(next):
+            if let previous = activeSide, previous != next {
+                modelLog.notice("switch \(previous.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public)")
+                releaseAllInputs()
+                liveInput.reset()
+                pointerEngines[previous]?.resetMotion()
+            }
+            refreshControllers()
+            resumePointerTracking(next)
+        case .accept:
+            break
+        }
+
         updateTelemetry(
             batteryLevel: frame.batteryLevel,
             isCharging: frame.isCharging
         )
-        let timestamp = ProcessInfo.processInfo.systemUptime
-        idlePolicy.record(frame, at: timestamp)
         liveInput.ingest(frame, timestamp: timestamp)
         pressHighlight.ingest(frame.buttons)
         guard settings.enabled else {
@@ -336,13 +460,13 @@ final class AppModel: ObservableObject {
         for action in mapper.process(
             frame: frame,
             timestamp: timestamp,
-            buttonBindings: settings.buttonBindings(for: .right),
-            stickVerticalBinding: settings.stickVerticalBinding(for: .right)
+            buttonBindings: settings.buttonBindings(for: side),
+            stickVerticalBinding: settings.stickVerticalBinding(for: side)
         ) {
             if action == .showStatus {
                 onShowStatus?()
             } else {
-                eventEmitter.emit(action)
+                emit(action)
             }
         }
 
@@ -351,14 +475,16 @@ final class AppModel: ObservableObject {
         let pointerSettings = settings.pointerSettings(
             screenWidthPoints: activeScreenWidthPoints
         )
+        var engine = pointerEngines[side] ?? GyroPointerEngine()
         let frameDeltas = frame.gyroSamples.compactMap { sample in
-            pointerEngine.process(
+            engine.process(
                 sample: sample,
                 isActive: gyroActive,
                 isPrecision: precision,
                 settings: pointerSettings
             )
         }
+        pointerEngines[side] = engine
         let confirmedDeltas = pointerFrameBuffer.process(
             frameDeltas: frameDeltas,
             isActive: gyroActive
@@ -369,7 +495,7 @@ final class AppModel: ObservableObject {
             pointerMotionEmitter.reset()
         }
 
-        switch pointerEngine.calibrationState {
+        switch engine.calibrationState {
         case let .calibrating(progress):
             updateStatus(.calibrating(progress))
         case .ready:
@@ -395,8 +521,16 @@ final class AppModel: ObservableObject {
         pointerFrameBuffer.reset()
         pointerMotionEmitter.reset()
         for action in mapper.reset() {
-            eventEmitter.emit(action)
+            emit(action)
         }
         eventEmitter.releaseAll()
+    }
+
+    private func emit(_ action: RemoteAction) {
+        if let actionSink {
+            actionSink(action)
+        } else {
+            eventEmitter.emit(action)
+        }
     }
 }

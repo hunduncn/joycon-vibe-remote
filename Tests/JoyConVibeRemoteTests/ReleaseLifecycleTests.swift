@@ -68,7 +68,7 @@ final class ReleaseLifecycleTests: XCTestCase {
             XCTAssertEqual(transport.startCount, 2)
             XCTAssertTrue(transport.isRunning)
             XCTAssertNil(model.errorMessage)
-            transport.onConnected?("Joy-Con (R)")
+            transport.onConnected?(.right, "Joy-Con (R)")
             XCTAssertEqual(model.status, .initializing)
             model.refreshPermissions()
             XCTAssertEqual(transport.startCount, 2)
@@ -78,7 +78,7 @@ final class ReleaseLifecycleTests: XCTestCase {
     func testRemoteToggleReopensConnectionAndQuitPreventsRefreshRetry() {
         withModel { model, transport, _ in
             model.reconnect()
-            transport.onConnected?("Joy-Con (R)")
+            transport.onConnected?(.right, "Joy-Con (R)")
             model.setRemoteEnabled(false)
             XCTAssertEqual(model.status, .paused)
             model.setRemoteEnabled(true)
@@ -95,8 +95,8 @@ final class ReleaseLifecycleTests: XCTestCase {
         withModel { model, transport, _ in
             model.settings.idleSleepMinutes = 30
             model.reconnect()
-            transport.onConnected?("Joy-Con (R)")
-            transport.onFrame?(JoyConInputFrame(buttons: [], stick: .zero))
+            transport.onConnected?(.right, "Joy-Con (R)")
+            transport.onFrame?(.right, JoyConInputFrame(buttons: [], stick: .zero))
             let now = ProcessInfo.processInfo.systemUptime
 
             model.checkIdleSleep(at: now + 29 * 60)
@@ -107,13 +107,13 @@ final class ReleaseLifecycleTests: XCTestCase {
             model.checkIdleSleep(at: now + 32 * 60)
             XCTAssertEqual(transport.sleepCount, 1)
 
-            transport.onDisconnected?()
+            transport.onDisconnected?(.right)
             XCTAssertEqual(model.status, .sleeping)
 
             // Pressing a button reconnects it and starts a fresh idle period.
-            transport.onConnected?("Joy-Con (R)")
+            transport.onConnected?(.right, "Joy-Con (R)")
             XCTAssertEqual(model.status, .initializing)
-            transport.onFrame?(JoyConInputFrame(buttons: [.a], stick: .zero))
+            transport.onFrame?(.right, JoyConInputFrame(buttons: [.a], stick: .zero))
             model.checkIdleSleep(at: ProcessInfo.processInfo.systemUptime + 60)
             XCTAssertEqual(transport.sleepCount, 1)
         }
@@ -132,15 +132,15 @@ final class ReleaseLifecycleTests: XCTestCase {
     func testWakingFromSleepKeepsTheCalibrationSoItWorksInHand() {
         withModel { model, transport, _ in
             model.reconnect()
-            transport.onConnected?("Joy-Con (R)")
-            stillFrames(60).forEach { transport.onFrame?($0) }
+            transport.onConnected?(.right, "Joy-Con (R)")
+            stillFrames(60).forEach { transport.onFrame?(.right, $0) }
             XCTAssertEqual(model.status, .connected)
 
             model.sleepController()
-            transport.onDisconnected?()
-            transport.onConnected?("Joy-Con (R)")
+            transport.onDisconnected?(.right)
+            transport.onConnected?(.right, "Joy-Con (R)")
             // Picked up and moving: no stationary recalibration is required.
-            transport.onFrame?(movingFrame)
+            transport.onFrame?(.right, movingFrame)
             XCTAssertEqual(model.status, .connected)
         }
     }
@@ -148,11 +148,11 @@ final class ReleaseLifecycleTests: XCTestCase {
     func testStreamRecoveryKeepsTheCalibration() {
         withModel { model, transport, _ in
             model.reconnect()
-            transport.onConnected?("Joy-Con (R)")
-            stillFrames(60).forEach { transport.onFrame?($0) }
+            transport.onConnected?(.right, "Joy-Con (R)")
+            stillFrames(60).forEach { transport.onFrame?(.right, $0) }
 
-            transport.onRecovering?()
-            transport.onFrame?(movingFrame)
+            transport.onRecovering?(.right)
+            transport.onFrame?(.right, movingFrame)
             XCTAssertEqual(model.status, .connected)
         }
     }
@@ -160,13 +160,13 @@ final class ReleaseLifecycleTests: XCTestCase {
     func testFirstConnectionAndExplicitRecalibrationStillCalibrate() {
         withModel { model, transport, _ in
             model.reconnect()
-            transport.onConnected?("Joy-Con (R)")
-            transport.onFrame?(movingFrame)
+            transport.onConnected?(.right, "Joy-Con (R)")
+            transport.onFrame?(.right, movingFrame)
             XCTAssertEqual(model.status, .calibrating(0))
 
-            stillFrames(60).forEach { transport.onFrame?($0) }
+            stillFrames(60).forEach { transport.onFrame?(.right, $0) }
             model.recalibrate()
-            transport.onFrame?(movingFrame)
+            transport.onFrame?(.right, movingFrame)
             XCTAssertEqual(model.status, .calibrating(0))
         }
     }
@@ -175,8 +175,8 @@ final class ReleaseLifecycleTests: XCTestCase {
         withModel { model, transport, _ in
             model.settings.idleSleepMinutes = 0
             model.reconnect()
-            transport.onConnected?("Joy-Con (R)")
-            transport.onFrame?(JoyConInputFrame(buttons: [], stick: .zero))
+            transport.onConnected?(.right, "Joy-Con (R)")
+            transport.onFrame?(.right, JoyConInputFrame(buttons: [], stick: .zero))
 
             model.checkIdleSleep(at: ProcessInfo.processInfo.systemUptime + 24 * 3600)
             XCTAssertEqual(transport.sleepCount, 0)
@@ -186,8 +186,8 @@ final class ReleaseLifecycleTests: XCTestCase {
     func testControllerLostWithoutASleepRequestIsReportedDisconnected() {
         withModel { model, transport, _ in
             model.reconnect()
-            transport.onConnected?("Joy-Con (R)")
-            transport.onDisconnected?()
+            transport.onConnected?(.right, "Joy-Con (R)")
+            transport.onDisconnected?(.right)
             XCTAssertEqual(model.status, .disconnected)
         }
     }
@@ -228,33 +228,5 @@ private final class FakeLoginService: LoginItemService {
         unregisterCount += 1
         if failUnregister { throw NSError(domain: "test", code: 2) }
         status = .notRegistered
-    }
-}
-
-private final class FakeTransport: JoyConTransport {
-    var onConnected: ((String) -> Void)?
-    var onDisconnected: (() -> Void)?
-    var onRecovering: (() -> Void)?
-    var onFrame: ((JoyConInputFrame) -> Void)?
-    var onError: ((String) -> Void)?
-    var isRunning = false
-    var failStart = false
-    var startCount = 0
-    var stopCount = 0
-    var sleepCount = 0
-
-    func requestSleep() {
-        sleepCount += 1
-    }
-
-    func start() {
-        startCount += 1
-        isRunning = !failStart
-        if failStart { onError?("Simulated permission denial") }
-    }
-
-    func stop() {
-        stopCount += 1
-        isRunning = false
     }
 }
