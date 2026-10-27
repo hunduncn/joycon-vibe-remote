@@ -73,6 +73,55 @@ xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 - **设置窗口：**菜单栏面板中点「打开设置…」，在「状态」「体感调节」「按键映射」「通用」四页里查看连接与校准、调节手感，
   并对着手柄示意图分别设置每个按键的“单按”和“按住 SL 后”动作；按下手柄上的键，对应设置会自动高亮。
 
+## 界面预览
+
+截图会跟随 GitHub 的浅色/深色主题切换。
+
+### 菜单栏面板
+
+点击菜单栏图标，查看连接状态和电量、开关遥控，并直达各个设置页。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/menu-bar-popover-dark.png">
+  <img src="docs/assets/screenshots/menu-bar-popover.png" alt="菜单栏面板：连接状态、电量、遥控开关和设置入口" width="420">
+</picture>
+
+### 按键映射
+
+对着手柄示意图设置每个按键的「单按」和「按住 SL」动作。按下手柄上的键，对应的卡片和引导线会高亮。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-dark.png">
+  <img src="docs/assets/screenshots/settings-mapping.png" alt="设置窗口的按键映射页：中间是手柄示意图，两侧是每个按键的设置卡片">
+</picture>
+
+### 状态
+
+连接、电量、零点校准、实时输入，以及「使用前检查」：缺哪项权限就给出对应按钮。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-status-dark.png">
+  <img src="docs/assets/screenshots/settings-status.png" alt="设置窗口的状态页：连接与电量、校准进度、实时输入和使用前检查">
+</picture>
+
+### 体感调节
+
+用示意图说明手腕动作和光标方向；每个滑块都附有说明，小竖线标出默认值。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-motion-dark.png">
+  <img src="docs/assets/screenshots/settings-motion.png" alt="设置窗口的体感调节页：方向示意图、反向开关和五个手感滑块">
+</picture>
+
+### 通用
+
+登录时启动、系统权限状态、恢复全部默认设置和版本信息。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-general-dark.png">
+  <img src="docs/assets/screenshots/settings-general.png" alt="设置窗口的通用页：启动、系统权限、重置和关于">
+</picture>
+
 ## 默认按键映射
 
 | Joy-Con 操作 | 普通层 | 按住 SL 后 |
