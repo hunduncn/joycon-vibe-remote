@@ -40,7 +40,8 @@ enum JoyConPart: Hashable, CaseIterable {
 
 /// Geometry of a right Joy-Con seen from the front, in a fixed design space.
 /// The artwork and the leader lines both read positions from here, so a line
-/// always lands on the part it describes.
+/// always lands on the part it describes. The left Joy-Con is its mirror
+/// image, except that its stick sits above the buttons instead of below.
 enum JoyConGeometry {
     static let size = CGSize(width: 240, height: 520)
 
@@ -73,6 +74,43 @@ enum JoyConGeometry {
     static let stickRadius: CGFloat = 35
     static let home = CGPoint(x: 100, y: 360)
     static let homeRadius: CGFloat = 13
+
+    static func center(of part: JoyConPart, side: JoyConSide) -> CGPoint {
+        guard side == .left else { return center(of: part) }
+        switch part {
+        case .stick:
+            return mirrored(faceCenter)
+        case .x, .y, .a, .b:
+            // The buttons keep their mirrored arrangement around the spot
+            // where the right controller has its stick.
+            let offset = mirrored(center(of: part)).x - mirrored(faceCenter).x
+            let rise = center(of: part).y - faceCenter.y
+            let dpad = mirrored(stick)
+            return CGPoint(x: dpad.x + offset, y: dpad.y + rise)
+        default:
+            return mirrored(center(of: part))
+        }
+    }
+
+    static func labelPoint(of part: JoyConPart, side: JoyConSide) -> CGPoint {
+        switch part {
+        case .zr, .r: return side == .left ? mirrored(labelPoint(of: part)) : labelPoint(of: part)
+        default: return center(of: part, side: side)
+        }
+    }
+
+    static func radius(of part: JoyConPart, side: JoyConSide) -> CGFloat {
+        guard side == .left else { return radius(of: part) }
+        switch part {
+        case .stick: return stickRadius
+        case .x, .y, .a, .b: return faceRadius
+        default: return radius(of: part)
+        }
+    }
+
+    static func mirrored(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: size.width - point.x, y: point.y)
+    }
 
     static func center(of part: JoyConPart) -> CGPoint {
         switch part {
@@ -134,6 +172,7 @@ private extension ClosedRange where Bound == CGFloat {
 }
 
 struct JoyConArtwork: View {
+    var side: JoyConSide = .right
     var highlighted: Set<JoyConPart> = []
     var showsLabels = true
 
@@ -147,6 +186,13 @@ struct JoyConArtwork: View {
     var body: some View {
         Canvas { context, size in
             context.concatenate(JoyConGeometry.transform(fitting: size))
+            // The shell, rail and shoulders are drawn as the right controller
+            // and flipped for the left one; buttons and text are placed
+            // unflipped so glyphs read the right way round.
+            var shellLayer = context
+            if side == .left {
+                shellLayer.concatenate(CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: JoyConGeometry.size.width, ty: 0))
+            }
             let line = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
             let fine = StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
 
@@ -157,40 +203,47 @@ struct JoyConArtwork: View {
                 context.fill(path, with: .color(fill(part, base)))
                 context.stroke(path, with: .color(stroke(part)), style: style)
             }
+            func outlinedBody(_ path: Path, _ part: JoyConPart, base: Color = Self.key, style: StrokeStyle = line) {
+                shellLayer.fill(path, with: .color(fill(part, base)))
+                shellLayer.stroke(path, with: .color(stroke(part)), style: style)
+            }
 
             // Shoulder buttons sit behind the shell: ZR solid, R a softer band.
-            outlined(Self.band(radii: JoyConGeometry.zrBand, startX: JoyConGeometry.zrStartX, end: JoyConGeometry.zrEnd), .zr, base: Self.ink)
-            outlined(Self.band(radii: JoyConGeometry.rBand, startX: JoyConGeometry.rStartX, end: JoyConGeometry.rEnd), .r, base: Self.soft)
+            outlinedBody(Self.band(radii: JoyConGeometry.zrBand, startX: JoyConGeometry.zrStartX, end: JoyConGeometry.zrEnd), .zr, base: Self.ink)
+            outlinedBody(Self.band(radii: JoyConGeometry.rBand, startX: JoyConGeometry.rStartX, end: JoyConGeometry.rEnd), .r, base: Self.soft)
 
             let rail = Path(roundedRect: JoyConGeometry.rail, cornerRadius: 8)
-            context.fill(rail, with: .color(Self.shell))
-            context.stroke(rail, with: .color(Self.ink), style: line)
+            shellLayer.fill(rail, with: .color(Self.shell))
+            shellLayer.stroke(rail, with: .color(Self.ink), style: line)
             for (part, rect) in [(JoyConPart.sr, JoyConGeometry.srButton), (.sl, JoyConGeometry.slButton)] {
-                outlined(Path(roundedRect: rect, cornerRadius: 7), part)
+                outlinedBody(Path(roundedRect: rect, cornerRadius: 7), part)
             }
 
             let shellPath = Self.shellPath()
-            context.fill(shellPath, with: .color(Self.shell))
-            context.stroke(shellPath, with: .color(Self.ink), style: line)
+            shellLayer.fill(shellPath, with: .color(Self.shell))
+            shellLayer.stroke(shellPath, with: .color(Self.ink), style: line)
             // The seam where the shell meets the rail.
             var seam = Path()
             seam.move(to: CGPoint(x: JoyConGeometry.body.minX + 8, y: JoyConGeometry.body.minY + 14))
             seam.addLine(to: CGPoint(x: JoyConGeometry.body.minX + 8, y: JoyConGeometry.body.maxY - 14))
-            context.stroke(seam, with: .color(Self.ink.opacity(0.7)), style: fine)
+            shellLayer.stroke(seam, with: .color(Self.ink.opacity(0.7)), style: fine)
 
-            // Plus button: a ring with a plus inside.
-            let plusCenter = JoyConGeometry.plus
+            // Plus (or minus) button: a ring with the sign inside.
+            let plusCenter = JoyConGeometry.center(of: .plus, side: side)
             outlined(Self.circle(plusCenter, 12), .plus, style: fine)
             var plus = Path()
             plus.move(to: CGPoint(x: plusCenter.x - 6, y: plusCenter.y))
             plus.addLine(to: CGPoint(x: plusCenter.x + 6, y: plusCenter.y))
-            plus.move(to: CGPoint(x: plusCenter.x, y: plusCenter.y - 6))
-            plus.addLine(to: CGPoint(x: plusCenter.x, y: plusCenter.y + 6))
+            if side == .right {
+                plus.move(to: CGPoint(x: plusCenter.x, y: plusCenter.y - 6))
+                plus.addLine(to: CGPoint(x: plusCenter.x, y: plusCenter.y + 6))
+            }
             context.stroke(plus, with: .color(isOn(.plus) ? .white : Self.ink), style: StrokeStyle(lineWidth: 3, lineCap: .round))
 
             // Face buttons.
-            for (part, letter) in [(JoyConPart.x, "X"), (.y, "Y"), (.a, "A"), (.b, "B")] {
-                let center = JoyConGeometry.center(of: part)
+            for part in [JoyConPart.x, .y, .a, .b] {
+                let letter = side.keyLabel(part.button)
+                let center = JoyConGeometry.center(of: part, side: side)
                 outlined(Self.circle(center, JoyConGeometry.faceRadius), part)
                 context.draw(
                     Text(letter)
@@ -201,12 +254,18 @@ struct JoyConArtwork: View {
             }
 
             // Stick: base ring and cap ring.
-            let stick = JoyConGeometry.stick
+            let stick = JoyConGeometry.center(of: .stick, side: side)
             outlined(Self.circle(stick, JoyConGeometry.stickRadius), .stick)
             context.stroke(Self.circle(stick, 24), with: .color(isOn(.stick) ? .white : Self.ink), style: line)
 
-            // Home button with its house glyph.
-            let home = JoyConGeometry.home
+            // Home button with its house glyph, or the left capture button:
+            // a rounded square with a dot.
+            let home = JoyConGeometry.center(of: .home, side: side)
+            if side == .left {
+                let square = CGRect(x: home.x - 11, y: home.y - 11, width: 22, height: 22)
+                outlined(Path(roundedRect: square, cornerRadius: 5), .home, style: fine)
+                context.stroke(Self.circle(home, 5), with: .color(isOn(.home) ? .white : Self.ink), style: StrokeStyle(lineWidth: 2))
+            } else {
             outlined(Self.circle(home, JoyConGeometry.homeRadius), .home, style: fine)
             var house = Path()
             house.move(to: CGPoint(x: home.x - 5.5, y: home.y + 0.5))
@@ -216,18 +275,19 @@ struct JoyConArtwork: View {
             house.addLine(to: CGPoint(x: home.x - 5.5, y: home.y + 5))
             house.closeSubpath()
             context.stroke(house, with: .color(isOn(.home) ? .white : Self.ink), style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+            }
 
             if showsLabels {
                 let labelFont = Font.system(size: 9, weight: .heavy, design: .rounded)
-                context.draw(Text("ZR").font(labelFont).foregroundColor(.white), at: JoyConGeometry.labelPoint(of: .zr))
+                context.draw(Text(side.keyLabel(.zr)).font(labelFont).foregroundColor(.white), at: JoyConGeometry.labelPoint(of: .zr, side: side))
                 context.draw(
-                    Text("R").font(labelFont).foregroundColor(isOn(.r) ? .white : Self.ink),
-                    at: JoyConGeometry.labelPoint(of: .r)
+                    Text(side.keyLabel(.r)).font(labelFont).foregroundColor(isOn(.r) ? .white : Self.ink),
+                    at: JoyConGeometry.labelPoint(of: .r, side: side)
                 )
             }
         }
         .aspectRatio(JoyConGeometry.size, contentMode: .fit)
-        .accessibilityLabel("右手 Joy-Con 示意图")
+        .accessibilityLabel(side == .right ? "右手 Joy-Con 示意图" : "左手 Joy-Con 示意图")
     }
 
     private static func circle(_ center: CGPoint, _ radius: CGFloat) -> Path {

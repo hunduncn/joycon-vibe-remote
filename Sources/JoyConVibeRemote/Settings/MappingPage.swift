@@ -4,8 +4,13 @@ import JoyConVibeCore
 /// Which card sits on which side, ordered top to bottom by where the part is
 /// on the controller so leader lines cross as little as possible.
 enum MappingLayout {
-    static let left: [JoyConPart] = [.plus, .sr, .y, .home, .sl]
-    static let right: [JoyConPart] = [.zr, .r, .x, .a, .b, .stick]
+    static func columns(for side: JoyConSide) -> (left: [JoyConPart], right: [JoyConPart]) {
+        switch side {
+        case .right: return ([.plus, .sr, .y, .home, .sl], [.zr, .r, .x, .a, .b, .stick])
+        case .left: return ([.zr, .r, .stick, .x, .a, .b], [.plus, .sr, .y, .home, .sl])
+        }
+    }
+
     static let fixed: Set<JoyConPart> = [.zr, .sl]
 }
 
@@ -22,13 +27,13 @@ struct MappingPage: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack(alignment: .center, spacing: 0) {
-                column(MappingLayout.left, spacing: 12).frame(minWidth: 214, maxWidth: 250)
+                column(MappingLayout.columns(for: .right).left, spacing: 12).frame(minWidth: 214, maxWidth: 250)
                 Spacer(minLength: 10)
                 JoyConArtwork(highlighted: highlighted.map { [$0] } ?? [])
                     .frame(width: 170, height: 368)
                     .anchorPreference(key: MappingAnchorsKey.self, value: .bounds) { MappingAnchors(artwork: $0) }
                 Spacer(minLength: 10)
-                column(MappingLayout.right, spacing: 6).frame(minWidth: 214, maxWidth: 250)
+                column(MappingLayout.columns(for: .right).right, spacing: 6).frame(minWidth: 214, maxWidth: 250)
             }
             .frame(maxHeight: .infinity)
             .overlayPreferenceValue(MappingAnchorsKey.self) { anchors in

@@ -6,29 +6,86 @@ import JoyConVibeCore
 final class SettingsWindowTests: XCTestCase {
     func testEveryButtonHasAPointOnTheDrawing() {
         let canvas = CGRect(origin: .zero, size: JoyConGeometry.size)
-        for button in JoyConButton.allCases {
-            let part = JoyConPart(button)
-            XCTAssertEqual(part.button, button)
-            XCTAssertTrue(canvas.contains(JoyConGeometry.center(of: part)), "\(button) is off the drawing")
+        for side in JoyConSide.allCases {
+            for button in JoyConButton.allCases {
+                let part = JoyConPart(button)
+                XCTAssertEqual(part.button, button)
+                XCTAssertTrue(
+                    canvas.contains(JoyConGeometry.center(of: part, side: side)),
+                    "\(button) is off the \(side) drawing"
+                )
+            }
         }
     }
 
     func testMappingCardsCoverEveryButtonExactlyOnce() {
-        let cards = MappingLayout.left + MappingLayout.right
-        XCTAssertEqual(cards.count, Set(cards).count)
-        XCTAssertEqual(Set(cards.map(\.button)), Set(JoyConButton.allCases))
-        // Every configurable button gets an editable card; only ZR and SL are fixed.
-        XCTAssertEqual(
-            Set(cards.filter { !MappingLayout.fixed.contains($0) }.map(\.button)),
-            Set(RemoteButtonAction.configurableButtons)
-        )
+        for side in JoyConSide.allCases {
+            let columns = MappingLayout.columns(for: side)
+            let cards = columns.left + columns.right
+            XCTAssertEqual(cards.count, Set(cards).count)
+            XCTAssertEqual(Set(cards.map(\.button)), Set(JoyConButton.allCases))
+            // Every configurable button gets an editable card; only the trigger and the layer key are fixed.
+            XCTAssertEqual(
+                Set(cards.filter { !MappingLayout.fixed.contains($0) }.map(\.button)),
+                Set(RemoteButtonAction.configurableButtons)
+            )
+        }
     }
 
     func testCardsAreOrderedTopToBottomByPositionOnTheController() {
-        for column in [MappingLayout.left, MappingLayout.right] {
-            let heights = column.map { JoyConGeometry.center(of: $0).y }
-            XCTAssertEqual(heights, heights.sorted())
+        for side in JoyConSide.allCases {
+            let columns = MappingLayout.columns(for: side)
+            for column in [columns.left, columns.right] {
+                let heights = column.map { JoyConGeometry.center(of: $0, side: side).y }
+                XCTAssertEqual(heights, heights.sorted(), "\(side)")
+            }
         }
+    }
+
+    func testRightLayoutIsUnchanged() {
+        let columns = MappingLayout.columns(for: .right)
+        XCTAssertEqual(columns.left, [.plus, .sr, .y, .home, .sl])
+        XCTAssertEqual(columns.right, [.zr, .r, .x, .a, .b, .stick])
+        XCTAssertEqual(JoyConGeometry.center(of: .a, side: .right), JoyConGeometry.center(of: .a))
+    }
+
+    func testLeftCardsSitOnTheSameSideAsTheirParts() {
+        let middle = JoyConGeometry.size.width / 2
+        let columns = MappingLayout.columns(for: .left)
+        for part in columns.left {
+            XCTAssertLessThan(JoyConGeometry.center(of: part, side: .left).x, middle, "\(part)")
+        }
+        for part in columns.right {
+            XCTAssertGreaterThan(JoyConGeometry.center(of: part, side: .left).x, middle, "\(part)")
+        }
+    }
+
+    func testLeftControllerHasTheStickAboveTheButtons() {
+        let stick = JoyConGeometry.center(of: .stick, side: .left)
+        let up = JoyConGeometry.center(of: .x, side: .left)
+        XCTAssertLessThan(stick.y, up.y)
+        XCTAssertLessThan(
+            JoyConGeometry.center(of: .a, side: .left).x,
+            JoyConGeometry.center(of: .y, side: .left).x,
+            "← sits left of →"
+        )
+    }
+
+    func testLeftLabelsAreTheRealKeyNames() {
+        let expected: [JoyConButton: String] = [
+            .zr: "ZL", .r: "L", .a: "←", .y: "→", .x: "↑", .b: "↓",
+            .plus: "−", .home: "截图", .stick: "摇杆按下", .sl: "SR", .sr: "SL"
+        ]
+        for button in JoyConButton.allCases {
+            XCTAssertEqual(JoyConSide.left.keyLabel(button), expected[button], "\(button)")
+            XCTAssertEqual(JoyConSide.right.keyLabel(button), button.mappingTitle)
+        }
+        XCTAssertEqual(JoyConSide.left.partName(.zr), "扳机 ZL")
+        XCTAssertEqual(JoyConSide.left.partName(.home), "截图键")
+        XCTAssertEqual(JoyConSide.left.partName(.sl), "侧键 SR")
+        XCTAssertEqual(JoyConSide.right.partName(.zr), "扳机 ZR")
+        XCTAssertEqual(JoyConSide.right.partName(.a), "A 键")
+        XCTAssertEqual(JoyConSide.left.displayName, "左手柄")
     }
 
     func testResetAllRestoresMappingsAndTuning() {
