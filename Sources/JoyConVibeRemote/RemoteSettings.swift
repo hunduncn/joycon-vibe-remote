@@ -15,6 +15,7 @@ final class RemoteSettings: ObservableObject {
         static let invertVertical = "pointer.invertVertical"
         static let launchAtLogin = "app.launchAtLogin"
         static let pointerDirectionVersion = "pointer.directionVersion"
+        static let highlightPressedButton = "ui.highlightPressedButton"
 
         static func buttonMapping(_ button: JoyConButton) -> String {
             "mapping.button.\(button.rawValue)"
@@ -57,6 +58,12 @@ final class RemoteSettings: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
+    @Published var highlightPressedButton: Bool {
+        didSet { defaults.set(highlightPressedButton, forKey: Key.highlightPressedButton) }
+    }
+    /// Changes when pointer tuning is reset, so controls holding their own
+    /// copy of a value can rebuild from the stored settings.
+    @Published private(set) var pointerTuningRevision = 0
     @Published private(set) var buttonBindings: [JoyConButton: RemoteButtonBinding]
     @Published private(set) var stickVerticalBinding: RemoteStickVerticalBinding
 
@@ -74,6 +81,7 @@ final class RemoteSettings: ObservableObject {
         invertHorizontal = defaults.object(forKey: Key.invertHorizontal) as? Bool ?? false
         invertVertical = defaults.object(forKey: Key.invertVertical) as? Bool ?? false
         launchAtLogin = defaults.object(forKey: Key.launchAtLogin) as? Bool ?? true
+        highlightPressedButton = defaults.object(forKey: Key.highlightPressedButton) as? Bool ?? true
         buttonBindings = Dictionary(uniqueKeysWithValues: RemoteButtonAction.configurableButtons.map { button in
             let defaultBinding = RemoteButtonBinding.defaultBindings[button]
                 ?? RemoteButtonBinding(primary: .none, withSL: .usePrimary)
@@ -153,6 +161,23 @@ final class RemoteSettings: ObservableObject {
     func setStickVerticalSL(_ action: RemoteStickVerticalAction) {
         stickVerticalBinding.withSL = action
         defaults.set(action.rawValue, forKey: Key.stickVerticalSL)
+    }
+
+    func resetPointerTuning() {
+        let standard = PointerSettings()
+        sensitivity = standard.sensitivity
+        horizontalSensitivityMultiplier = standard.horizontalSensitivityMultiplier
+        accelerationStrength = standard.accelerationStrength
+        stabilizationStrength = standard.stabilizationStrength
+        precisionMultiplier = standard.precisionMultiplier
+        invertHorizontal = standard.invertHorizontal
+        invertVertical = standard.invertVertical
+        pointerTuningRevision += 1
+    }
+
+    func resetAll() {
+        resetButtonMappings()
+        resetPointerTuning()
     }
 
     func resetButtonMappings() {

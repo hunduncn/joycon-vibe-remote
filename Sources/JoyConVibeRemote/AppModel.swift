@@ -1,7 +1,14 @@
 import AppKit
 import Combine
 import Foundation
+import IOKit.hid
 import JoyConVibeCore
+
+enum InputMonitoringAccess: Equatable {
+    case granted
+    case denied
+    case undetermined
+}
 
 enum RemoteStatus: Equatable {
     case disconnected
@@ -49,9 +56,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var accessibilityTrusted = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var loginItemMessage: String?
+    @Published private(set) var isConnected = false
+    @Published private(set) var inputMonitoringAccess = InputMonitoringAccess.undetermined
 
     let settings: RemoteSettings
+    let liveInput = LiveInput()
+    let pressHighlight = PressHighlight()
     var onShowStatus: (() -> Void)?
+    var onOpenSettings: ((SettingsPage) -> Void)?
 
     private let eventEmitter = SystemEventEmitter()
     private let loginItemManager: LoginItemManager
@@ -62,7 +74,6 @@ final class AppModel: ObservableObject {
     private var pointerFrameBuffer = ClutchedPointerFrameBuffer()
     private var pointerTuningLifecycle = PointerTuningLifecycle()
     private let transport: any JoyConTransport
-    private var isConnected = false
     private var hasStarted = false
 
     init(
@@ -82,6 +93,7 @@ final class AppModel: ObservableObject {
         guard !hasStarted else { return }
         hasStarted = true
         accessibilityTrusted = eventEmitter.requestAccessibility(prompt: true)
+        refreshInputMonitoringAccess()
         setLaunchAtLogin(settings.launchAtLogin)
         transport.start()
     }
@@ -148,6 +160,10 @@ final class AppModel: ObservableObject {
         // A slider drag may span several IMU reports and leave scheduled mouse
         // deltas using intermediate gains. Commit the final value at a clean
         // clutch boundary without throwing away the established gyro bias.
+        restartPointerMotion()
+    }
+
+    private func restartPointerMotion() {
         pointerEngine.resetMotion()
         pointerFrameBuffer.reset()
         pointerMotionEmitter.reset()
@@ -167,8 +183,38 @@ final class AppModel: ObservableObject {
         status = newStatus
     }
 
+    func openSettings(_ page: SettingsPage) {
+        onOpenSettings?(page)
+    }
+
+    func resetPointerTuning() {
+        settings.resetPointerTuning()
+        restartPointerMotion()
+    }
+
+    func resetAllSettings() {
+        settings.resetAll()
+        restartPointerMotion()
+    }
+
+    func requestInputMonitoring() {
+        if !IOHIDRequestAccess(kIOHIDRequestTypeListenEvent) {
+            openInputMonitoringSettings()
+        }
+        refreshInputMonitoringAccess()
+    }
+
+    private func refreshInputMonitoringAccess() {
+        switch IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) {
+        case kIOHIDAccessTypeGranted: inputMonitoringAccess = .granted
+        case kIOHIDAccessTypeDenied: inputMonitoringAccess = .denied
+        default: inputMonitoringAccess = .undetermined
+        }
+    }
+
     func refreshPermissions() {
         accessibilityTrusted = eventEmitter.isAccessibilityTrusted
+        refreshInputMonitoringAccess()
         refreshLoginItemStatus()
         if hasStarted && !transport.isRunning { reconnect() }
     }
@@ -207,6 +253,7 @@ final class AppModel: ObservableObject {
             self.updateTelemetry(batteryLevel: 0, isCharging: false)
             self.releaseAllInputs()
             self.pointerEngine.beginCalibration()
+            self.liveInput.reset()
         }
         transport.onRecovering = { [weak self] in
             guard let self, self.isConnected else { return }
@@ -229,12 +276,14 @@ final class AppModel: ObservableObject {
             batteryLevel: frame.batteryLevel,
             isCharging: frame.isCharging
         )
+        let timestamp = ProcessInfo.processInfo.systemUptime
+        liveInput.ingest(frame, timestamp: timestamp)
+        pressHighlight.ingest(frame.buttons)
         guard settings.enabled else {
             if isConnected { updateStatus(.paused) }
             return
         }
 
-        let timestamp = ProcessInfo.processInfo.systemUptime
         for action in mapper.process(
             frame: frame,
             timestamp: timestamp,

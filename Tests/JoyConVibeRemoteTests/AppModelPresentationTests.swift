@@ -40,7 +40,7 @@ final class AppModelPresentationTests: XCTestCase {
     }
 
     func testPanelHeightFollowsContentWithinScreenSafeLimits() {
-        XCTAssertEqual(StatusPanelHeightPolicy.height(for: 180), 220)
+        XCTAssertEqual(StatusPanelHeightPolicy.height(for: 100), 140)
         XCTAssertEqual(StatusPanelHeightPolicy.height(for: 487.2), 488)
         XCTAssertEqual(StatusPanelHeightPolicy.height(for: 900), 720)
     }
