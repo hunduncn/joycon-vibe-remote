@@ -52,13 +52,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.delegate = self
         window.contentMinSize = SettingsView.minimumSize
         window.center()
-        // Reopen where the user last left it, but never larger than the
-        // screen it lands on.
+        // Reopen where the user last left it, but at least the default height
+        // (a size saved by an older version may be too short for every page
+        // to fit) and never larger than the screen it lands on.
+        let defaultHeight = window.frame.height
         window.setFrameAutosaveName("SettingsWindow")
         if let visible = (window.screen ?? NSScreen.main)?.visibleFrame {
             var frame = window.frame
             frame.size.width = min(frame.width, visible.width - 40)
-            frame.size.height = min(frame.height, visible.height - 20)
+            frame.size.height = min(max(frame.height, defaultHeight), visible.height - 20)
             frame.origin.x = min(max(frame.minX, visible.minX + 20), visible.maxX - frame.width - 20)
             frame.origin.y = min(max(frame.minY, visible.minY + 10), visible.maxY - frame.height - 10)
             window.setFrame(frame, display: false)

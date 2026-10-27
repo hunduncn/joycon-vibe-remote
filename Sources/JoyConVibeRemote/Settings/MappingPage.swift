@@ -94,7 +94,8 @@ struct MappingPage: View {
 
     private var sidePicker: some View {
         Picker("编辑手柄", selection: $editingSide) {
-            ForEach(JoyConSide.allCases, id: \.self) { side in
+            // Left first, matching where each controller sits in your hands.
+            ForEach([JoyConSide.left, .right], id: \.self) { side in
                 Text(side.displayName).tag(side)
             }
         }

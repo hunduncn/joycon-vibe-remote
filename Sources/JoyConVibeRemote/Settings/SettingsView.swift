@@ -28,7 +28,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         switch self {
         case .status: return 470
         case .motion: return 430
-        case .mapping: return 470
+        case .mapping: return 510
         case .general: return 430
         }
     }
@@ -50,7 +50,7 @@ final class SettingsNavigation: ObservableObject {
 
 struct SettingsView: View {
     /// Preferred size; the window shrinks to fit smaller screens.
-    static let size = CGSize(width: 860, height: 580)
+    static let size = CGSize(width: 860, height: 600)
     static let minimumSize = CGSize(width: 840, height: 540)
 
     @ObservedObject var model: AppModel

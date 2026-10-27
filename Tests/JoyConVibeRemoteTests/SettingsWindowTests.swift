@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 import JoyConVibeCore
 @testable import JoyConVibeRemote
@@ -138,5 +139,18 @@ final class SettingsWindowTests: XCTestCase {
 
         live.isObserving = false
         XCTAssertEqual(live.snapshot.buttons, [])
+    }
+
+    func testMappingPageFitsItsMinimumHeightWithRoomBelow() {
+        let suite = "SettingsWindowTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = AppModel(settings: RemoteSettings(defaults: defaults), transport: FakeTransport(), managesLoginItem: false)
+        let page = MappingPage(model: model, settings: model.settings, highlight: model.pressHighlight)
+            .frame(width: SettingsView.size.width - 84 - 40)
+            .fixedSize(horizontal: false, vertical: true)
+        let natural = NSHostingView(rootView: page).fittingSize.height
+        // The page sits above a 16 pt bottom margin; anything taller is clipped.
+        XCTAssertLessThanOrEqual(natural + 16, SettingsPage.mapping.minimumContentHeight)
     }
 }
