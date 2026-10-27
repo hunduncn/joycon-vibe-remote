@@ -336,8 +336,8 @@ final class AppModel: ObservableObject {
         for action in mapper.process(
             frame: frame,
             timestamp: timestamp,
-            buttonBindings: settings.buttonBindings,
-            stickVerticalBinding: settings.stickVerticalBinding
+            buttonBindings: settings.buttonBindings(for: .right),
+            stickVerticalBinding: settings.stickVerticalBinding(for: .right)
         ) {
             if action == .showStatus {
                 onShowStatus?()

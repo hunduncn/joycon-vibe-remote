@@ -36,7 +36,7 @@ final class SettingsWindowTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let settings = RemoteSettings(defaults: defaults)
-        settings.setPrimaryMapping(.space, for: .a)
+        settings.setPrimaryMapping(.space, for: .a, side: .right)
         settings.sensitivity = 3
         settings.invertVertical = true
         let revision = settings.pointerTuningRevision
@@ -44,7 +44,7 @@ final class SettingsWindowTests: XCTestCase {
         settings.resetAll()
 
         let standard = PointerSettings()
-        XCTAssertEqual(settings.binding(for: .a), RemoteButtonBinding.defaultBindings[.a])
+        XCTAssertEqual(settings.binding(for: .a, side: .right), RemoteButtonBinding.defaultBindings[.a])
         XCTAssertEqual(settings.sensitivity, standard.sensitivity)
         XCTAssertFalse(settings.invertVertical)
         XCTAssertGreaterThan(settings.pointerTuningRevision, revision)

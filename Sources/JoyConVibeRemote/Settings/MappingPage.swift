@@ -79,7 +79,7 @@ struct MappingPage: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 6)
-            Button("恢复默认") { settings.resetButtonMappings() }
+            Button("恢复默认") { settings.resetButtonMappings(side: .right) }
                 .controlSize(.small)
         }
         .padding(.horizontal, 12)
@@ -212,19 +212,19 @@ private struct MappingCard: View {
                 row("上下") {
                     ActionMenu(
                         caption: nil,
-                        selection: settings.stickVerticalBinding.primary,
+                        selection: settings.stickVerticalBinding(for: .right).primary,
                         choices: RemoteStickVerticalAction.primaryChoices,
                         title: \.mappingTitle,
                         isDimmed: { $0 == .none },
-                        onSelect: settings.setStickVerticalPrimary
+                        onSelect: { settings.setStickVerticalPrimary($0, side: .right) }
                     )
                     ActionMenu(
                         caption: nil,
-                        selection: settings.stickVerticalBinding.withSL,
+                        selection: settings.stickVerticalBinding(for: .right).withSL,
                         choices: RemoteStickVerticalAction.slChoices,
                         title: \.mappingTitle,
                         isDimmed: { $0 == .usePrimary || $0 == .none },
-                        onSelect: settings.setStickVerticalSL
+                        onSelect: { settings.setStickVerticalSL($0, side: .right) }
                     )
                 }
             }
@@ -237,19 +237,19 @@ private struct MappingCard: View {
     private func buttonMenus(for button: JoyConButton) -> some View {
         ActionMenu(
             caption: nil,
-            selection: settings.binding(for: button).primary,
+            selection: settings.binding(for: button, side: .right).primary,
             choices: RemoteButtonAction.primaryChoices,
             title: \.mappingTitle,
             isDimmed: { $0 == .none },
-            onSelect: { settings.setPrimaryMapping($0, for: button) }
+            onSelect: { settings.setPrimaryMapping($0, for: button, side: .right) }
         )
         ActionMenu(
             caption: nil,
-            selection: settings.binding(for: button).withSL,
+            selection: settings.binding(for: button, side: .right).withSL,
             choices: RemoteButtonAction.slChoices,
             title: \.mappingTitle,
             isDimmed: { $0 == .usePrimary || $0 == .none },
-            onSelect: { settings.setSLMapping($0, for: button) }
+            onSelect: { settings.setSLMapping($0, for: button, side: .right) }
         )
     }
 

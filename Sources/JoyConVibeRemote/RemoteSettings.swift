@@ -18,16 +18,27 @@ final class RemoteSettings: ObservableObject {
         static let highlightPressedButton = "ui.highlightPressedButton"
         static let idleSleepMinutes = "power.idleSleepMinutes"
 
-        static func buttonMapping(_ button: JoyConButton) -> String {
-            "mapping.button.\(button.rawValue)"
+        /// The right controller keeps the keys it had before left support,
+        /// so upgrading never loses a mapping.
+        private static func mapping(_ side: JoyConSide) -> String {
+            side == .right ? "mapping." : "mapping.left."
         }
 
-        static func slButtonMapping(_ button: JoyConButton) -> String {
-            "mapping.button.\(button.rawValue).sl"
+        static func buttonMapping(_ button: JoyConButton, _ side: JoyConSide) -> String {
+            "\(mapping(side))button.\(button.rawValue)"
         }
 
-        static let stickVerticalPrimary = "mapping.stick.vertical.primary"
-        static let stickVerticalSL = "mapping.stick.vertical.sl"
+        static func slButtonMapping(_ button: JoyConButton, _ side: JoyConSide) -> String {
+            "\(mapping(side))button.\(button.rawValue).sl"
+        }
+
+        static func stickVerticalPrimary(_ side: JoyConSide) -> String {
+            "\(mapping(side))stick.vertical.primary"
+        }
+
+        static func stickVerticalSL(_ side: JoyConSide) -> String {
+            "\(mapping(side))stick.vertical.sl"
+        }
     }
 
     private let defaults: UserDefaults
@@ -69,8 +80,8 @@ final class RemoteSettings: ObservableObject {
     /// Changes when pointer tuning is reset, so controls holding their own
     /// copy of a value can rebuild from the stored settings.
     @Published private(set) var pointerTuningRevision = 0
-    @Published private(set) var buttonBindings: [JoyConButton: RemoteButtonBinding]
-    @Published private(set) var stickVerticalBinding: RemoteStickVerticalBinding
+    @Published private(set) var buttonBindings: [JoyConSide: [JoyConButton: RemoteButtonBinding]]
+    @Published private(set) var stickVerticalBindings: [JoyConSide: RemoteStickVerticalBinding]
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -88,12 +99,26 @@ final class RemoteSettings: ObservableObject {
         launchAtLogin = defaults.object(forKey: Key.launchAtLogin) as? Bool ?? true
         highlightPressedButton = defaults.object(forKey: Key.highlightPressedButton) as? Bool ?? true
         idleSleepMinutes = defaults.object(forKey: Key.idleSleepMinutes) as? Int ?? 30
-        buttonBindings = Dictionary(uniqueKeysWithValues: RemoteButtonAction.configurableButtons.map { button in
+        buttonBindings = Dictionary(uniqueKeysWithValues: JoyConSide.allCases.map {
+            ($0, Self.loadBindings(side: $0, from: defaults))
+        })
+        stickVerticalBindings = Dictionary(uniqueKeysWithValues: JoyConSide.allCases.map {
+            ($0, Self.loadStick(side: $0, from: defaults))
+        })
+    }
+
+    /// Both sides share the same defaults: a left controller reports each
+    /// button as the right button in the mirrored position.
+    private static func loadBindings(
+        side: JoyConSide,
+        from defaults: UserDefaults
+    ) -> [JoyConButton: RemoteButtonBinding] {
+        Dictionary(uniqueKeysWithValues: RemoteButtonAction.configurableButtons.map { button in
             let defaultBinding = RemoteButtonBinding.defaultBindings[button]
                 ?? RemoteButtonBinding(primary: .none, withSL: .usePrimary)
-            let storedPrimary = defaults.string(forKey: Key.buttonMapping(button))
+            let storedPrimary = defaults.string(forKey: Key.buttonMapping(button, side))
                 .flatMap(RemoteButtonAction.init(rawValue:))
-            let storedSL = defaults.string(forKey: Key.slButtonMapping(button))
+            let storedSL = defaults.string(forKey: Key.slButtonMapping(button, side))
                 .flatMap(RemoteButtonAction.init(rawValue:))
             return (
                 button,
@@ -103,12 +128,15 @@ final class RemoteSettings: ObservableObject {
                 )
             )
         })
+    }
+
+    private static func loadStick(side: JoyConSide, from defaults: UserDefaults) -> RemoteStickVerticalBinding {
         let defaultStick = RemoteStickVerticalBinding.defaultBinding
-        stickVerticalBinding = RemoteStickVerticalBinding(
-            primary: defaults.string(forKey: Key.stickVerticalPrimary)
+        return RemoteStickVerticalBinding(
+            primary: defaults.string(forKey: Key.stickVerticalPrimary(side))
                 .flatMap(RemoteStickVerticalAction.init(rawValue:))
                 ?? defaultStick.primary,
-            withSL: defaults.string(forKey: Key.stickVerticalSL)
+            withSL: defaults.string(forKey: Key.stickVerticalSL(side))
                 .flatMap(RemoteStickVerticalAction.init(rawValue:))
                 ?? defaultStick.withSL
         )
@@ -137,36 +165,44 @@ final class RemoteSettings: ObservableObject {
         )
     }
 
-    func binding(for button: JoyConButton) -> RemoteButtonBinding {
-        buttonBindings[button]
+    func buttonBindings(for side: JoyConSide) -> [JoyConButton: RemoteButtonBinding] {
+        buttonBindings[side] ?? RemoteButtonBinding.defaultBindings
+    }
+
+    func stickVerticalBinding(for side: JoyConSide) -> RemoteStickVerticalBinding {
+        stickVerticalBindings[side] ?? .defaultBinding
+    }
+
+    func binding(for button: JoyConButton, side: JoyConSide) -> RemoteButtonBinding {
+        buttonBindings(for: side)[button]
             ?? RemoteButtonBinding.defaultBindings[button]
             ?? RemoteButtonBinding(primary: .none, withSL: .usePrimary)
     }
 
-    func setPrimaryMapping(_ action: RemoteButtonAction, for button: JoyConButton) {
+    func setPrimaryMapping(_ action: RemoteButtonAction, for button: JoyConButton, side: JoyConSide) {
         guard RemoteButtonAction.configurableButtons.contains(button) else { return }
-        var binding = binding(for: button)
+        var binding = binding(for: button, side: side)
         binding.primary = action
-        buttonBindings[button] = binding
-        defaults.set(action.rawValue, forKey: Key.buttonMapping(button))
+        buttonBindings[side, default: [:]][button] = binding
+        defaults.set(action.rawValue, forKey: Key.buttonMapping(button, side))
     }
 
-    func setSLMapping(_ action: RemoteButtonAction, for button: JoyConButton) {
+    func setSLMapping(_ action: RemoteButtonAction, for button: JoyConButton, side: JoyConSide) {
         guard RemoteButtonAction.configurableButtons.contains(button) else { return }
-        var binding = binding(for: button)
+        var binding = binding(for: button, side: side)
         binding.withSL = action
-        buttonBindings[button] = binding
-        defaults.set(action.rawValue, forKey: Key.slButtonMapping(button))
+        buttonBindings[side, default: [:]][button] = binding
+        defaults.set(action.rawValue, forKey: Key.slButtonMapping(button, side))
     }
 
-    func setStickVerticalPrimary(_ action: RemoteStickVerticalAction) {
-        stickVerticalBinding.primary = action
-        defaults.set(action.rawValue, forKey: Key.stickVerticalPrimary)
+    func setStickVerticalPrimary(_ action: RemoteStickVerticalAction, side: JoyConSide) {
+        stickVerticalBindings[side, default: .defaultBinding].primary = action
+        defaults.set(action.rawValue, forKey: Key.stickVerticalPrimary(side))
     }
 
-    func setStickVerticalSL(_ action: RemoteStickVerticalAction) {
-        stickVerticalBinding.withSL = action
-        defaults.set(action.rawValue, forKey: Key.stickVerticalSL)
+    func setStickVerticalSL(_ action: RemoteStickVerticalAction, side: JoyConSide) {
+        stickVerticalBindings[side, default: .defaultBinding].withSL = action
+        defaults.set(action.rawValue, forKey: Key.stickVerticalSL(side))
     }
 
     func resetPointerTuning() {
@@ -182,18 +218,20 @@ final class RemoteSettings: ObservableObject {
     }
 
     func resetAll() {
-        resetButtonMappings()
+        for side in JoyConSide.allCases {
+            resetButtonMappings(side: side)
+        }
         resetPointerTuning()
     }
 
-    func resetButtonMappings() {
+    func resetButtonMappings(side: JoyConSide) {
         for button in RemoteButtonAction.configurableButtons {
-            defaults.removeObject(forKey: Key.buttonMapping(button))
-            defaults.removeObject(forKey: Key.slButtonMapping(button))
+            defaults.removeObject(forKey: Key.buttonMapping(button, side))
+            defaults.removeObject(forKey: Key.slButtonMapping(button, side))
         }
-        defaults.removeObject(forKey: Key.stickVerticalPrimary)
-        defaults.removeObject(forKey: Key.stickVerticalSL)
-        buttonBindings = RemoteButtonBinding.defaultBindings
-        stickVerticalBinding = .defaultBinding
+        defaults.removeObject(forKey: Key.stickVerticalPrimary(side))
+        defaults.removeObject(forKey: Key.stickVerticalSL(side))
+        buttonBindings[side] = RemoteButtonBinding.defaultBindings
+        stickVerticalBindings[side] = .defaultBinding
     }
 }
