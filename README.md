@@ -1,191 +1,208 @@
 # Joy-Con Vibe Remote
 
-> 把 Nintendo Switch Joy-Con 变成 macOS 的体感鼠标与 Vibe Coding 遥控器。
+English | [简体中文](README.zh-CN.md)
 
-Joy-Con Vibe Remote 是一款常驻 macOS 菜单栏的轻量 App。它读取 Joy-Con 的
-陀螺仪和加速度数据，让你通过手腕动作移动光标，同时把实体按键映射成鼠标、
-键盘和 Agent 常用操作。
+> Turn a Nintendo Switch Joy-Con into a motion mouse and Vibe Coding remote for macOS.
 
-适合把电脑画面投到电视或墙面后，在沙发、演讲台等远离键盘的位置操作
-Codex、Claude Code 和普通 macOS 应用。
+Joy-Con Vibe Remote is a lightweight macOS menu bar app. It reads the Joy-Con's
+gyroscope and accelerometer so you can move the cursor with your wrist, and maps
+the physical buttons to mouse clicks, keystrokes and common Agent actions.
+
+It is made for driving Codex, Claude Code and everyday macOS apps from the couch
+or a podium, when your screen is on a TV or projector and the keyboard is out of
+reach.
 
 > [!IMPORTANT]
-> Joy-Con 本身不带麦克风。R 键可以触发 macOS 系统听写，但语音输入需要
-> Mac 内置麦克风、有线麦克风或无线麦克风。
-
-## 下载安装
-
-不需要 Xcode，也不需要编译：
-
-1. 打开 [Releases 页面](https://github.com/hunduncn/joycon-vibe-remote/releases/latest)，下载最新的
-   `Joy-Con-Vibe-Remote-x.y.z.dmg`；
-2. 双击打开 DMG，把 `Joy-Con Vibe Remote` 拖进「应用程序」；
-3. 从「应用程序」启动 App。
+> The Joy-Con has no microphone. The R button can trigger macOS Dictation, but
+> voice input needs the Mac's built-in microphone or a wired or wireless one.
 
 > [!NOTE]
-> 安装包仅支持 **Apple 芯片（M 系列）的 Mac**，需要 macOS 14 或更高版本。
+> The app's interface is in Simplified Chinese. The screenshots below show it
+> as it appears, and this README gives the English meaning of each label you
+> need, with the original in brackets, for example General (通用).
 
-### 首次打开被系统拦截
+## Download
 
-安装包没有经过 Apple 公证，第一次打开时 macOS 会提示“无法验证开发者”。
-这是未公证 App 的正常现象，按下面步骤放行一次即可，之后不会再提示：
+No Xcode or compiling required:
 
-1. 双击 App，在拦截提示中点「完成」；
-2. 打开「系统设置 → 隐私与安全性」，在页面下方找到 Joy-Con Vibe Remote，点「仍要打开」；
-3. 在弹出的确认框中再次点「打开」，按提示输入密码。
+1. Open the [Releases page](https://github.com/hunduncn/joycon-vibe-remote/releases/latest) and download the latest
+   `Joy-Con-Vibe-Remote-x.y.z.dmg`;
+2. Open the DMG and drag `Joy-Con Vibe Remote` into Applications;
+3. Launch the app from Applications.
 
-熟悉终端的话，也可以在拖入「应用程序」后执行下面的命令，直接移除下载隔离标记：
+> [!NOTE]
+> The DMG supports **Apple silicon (M-series) Macs** only and requires macOS 14 or later.
+
+### If macOS blocks the first launch
+
+The app is not notarized by Apple, so the first launch shows a warning that the
+developer cannot be verified. This is normal for unnotarized apps. Allow it once
+and it will not ask again:
+
+1. Double-click the app and click Done in the warning;
+2. Open System Settings → Privacy & Security, scroll down to Joy-Con Vibe Remote and click Open Anyway;
+3. Click Open in the confirmation dialog and enter your password.
+
+If you are comfortable with Terminal, you can instead remove the download
+quarantine flag after copying the app to Applications:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Joy-Con Vibe Remote.app"
 ```
 
-打开 App 之后的配对、授权和校准步骤见下方[首次使用](#首次使用)。
+For pairing, permissions and calibration after launch, see [Getting started](#getting-started).
 
-## 网页使用说明
+## Web manual
 
-[在线打开网页版说明书](https://hunduncn.github.io/joycon-vibe-remote/manual/) · [查看网页源码](docs/manual/index.html)
+[Open the web manual](https://hunduncn.github.io/joycon-vibe-remote/manual/) (Chinese) · [View its source](docs/manual/index.html)
 
-说明书包含：
+The manual covers:
 
-- 蓝牙连接、权限授予和静置校准；
-- 普通按键层、SL Agent 副层和 ZR 体感层；
-- Vibe Coding 操作流程；
-- 控制台设置与常见问题排查；
-- 手机与桌面响应式布局，以及打印/PDF 样式。
+- Bluetooth pairing, permissions and stillness calibration;
+- The normal layer, the SL Agent layer and the ZR motion layer;
+- A Vibe Coding workflow;
+- Settings and troubleshooting;
+- Responsive layouts for phone and desktop, plus print/PDF styles.
 
-克隆仓库后，直接用浏览器打开 `docs/manual/index.html` 即可离线阅读。
+After cloning the repository, open `docs/manual/index.html` in a browser to read it offline.
 
-## 默认按键图
+## Default button guide
 
-![Joy-Con 默认按键映射手绘说明](docs/assets/joycon-button-guide-handdrawn-v3.png)
+![Hand-drawn guide to the default Joy-Con button mapping (in Chinese)](docs/assets/joycon-button-guide-handdrawn-v3.png)
 
-## 核心功能
+The same mapping is listed in English under [Default button mapping](#default-button-mapping).
 
-- **体感鼠标：**按住 ZR 移动光标，松开立即停止；每次按下都会以当前握姿
-  重新锚定方向。
-- **精准体感：**按住 ZR + SL，以较低灵敏度瞄准小按钮和文本光标。
-- **系统语音：**R 发送一次 Fn，可配合 macOS 的“单按 Fn 开启听写”。
-- **鼠标与键盘：**支持左键、右键、回车、删除、Esc、Tab、方向键和应用切换。
-- **Agent 副层：**按住 SL 后可换行但不发送、强制中断、反向切换焦点，并用
-  摇杆操作真正的上下方向键。
-- **命令符号：**按住 SL 连点 Home，依次输入 `/`、`@`、`$`、`!`。
-- **闲置休眠：**手柄闲置一段时间（默认 30 分钟）后自动断开蓝牙省电，按任意键即可唤醒并重新连上，
-  无需再次校准。
-- **设置窗口：**菜单栏面板中点「打开设置…」，在「状态」「体感调节」「按键映射」「通用」四页里查看连接与校准、调节手感，
-  并对着手柄示意图分别设置每个按键的“单按”和“按住 SL 后”动作；按下手柄上的键，对应设置会自动高亮。
+## Features
 
-## 界面预览
+- **Motion mouse:** hold ZR to move the cursor and release to stop at once.
+  Each press re-anchors the direction to how you are holding the controller.
+- **Precision mode:** hold ZR + SL to aim at small buttons and text carets with lower sensitivity.
+- **System dictation:** R sends a single Fn press, which works with macOS's "press Fn to start dictation".
+- **Mouse and keyboard:** left click, right click, Return, Delete, Esc, Tab, arrow keys and app switching.
+- **Agent layer:** hold SL to insert a newline without sending, force-interrupt, move focus backwards,
+  and use the stick as real up/down arrow keys.
+- **Command symbols:** hold SL and tap Home repeatedly to type `/`, `@`, `$` and `!` in turn.
+- **Idle sleep:** after the controller sits idle for a while (30 minutes by default) it drops its
+  Bluetooth link to save battery. Press any button to wake it; it reconnects without recalibrating.
+- **Settings window:** click Open Settings… (打开设置…) in the menu bar panel. Four pages, Status (状态),
+  Motion (体感调节), Button Mapping (按键映射) and General (通用), show the connection and calibration,
+  tune the feel, and set each button's "press" and "hold SL" actions on a drawing of the controller.
+  Pressing a button on the Joy-Con highlights its setting.
 
-截图会跟随 GitHub 的浅色/深色主题切换。
+## Screenshots
 
-### 菜单栏面板
+The screenshots follow GitHub's light or dark theme.
 
-点击菜单栏图标，查看连接状态和电量、开关遥控，并直达各个设置页。
+### Menu bar panel
+
+Click the menu bar icon to see the connection and battery, toggle the remote, and jump to any settings page.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/menu-bar-popover-dark.png">
-  <img src="docs/assets/screenshots/menu-bar-popover.png" alt="菜单栏面板：连接状态、电量、遥控开关和设置入口" width="420">
+  <img src="docs/assets/screenshots/menu-bar-popover.png" alt="Menu bar panel: connection status, battery, remote toggle and settings shortcuts" width="420">
 </picture>
 
-### 按键映射
+### Button Mapping
 
-对着手柄示意图设置每个按键的「单按」和「按住 SL」动作。按下手柄上的键，对应的卡片和引导线会高亮。
+Set each button's "press" and "hold SL" actions on a drawing of the controller. Pressing a button on the Joy-Con highlights its card and leader line.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-mapping-dark.png">
-  <img src="docs/assets/screenshots/settings-mapping.png" alt="设置窗口的按键映射页：中间是手柄示意图，两侧是每个按键的设置卡片">
+  <img src="docs/assets/screenshots/settings-mapping.png" alt="Button Mapping page: a controller drawing in the middle with a settings card for each button on both sides">
 </picture>
 
-### 状态
+### Status
 
-连接、电量、零点校准、实时输入，以及「使用前检查」：缺哪项权限就给出对应按钮。
+Connection, battery, zero-point calibration, live input, and a pre-flight checklist with a button for each missing permission.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-status-dark.png">
-  <img src="docs/assets/screenshots/settings-status.png" alt="设置窗口的状态页：连接与电量、校准进度、实时输入和使用前检查">
+  <img src="docs/assets/screenshots/settings-status.png" alt="Status page: connection and battery, calibration progress, live input and the pre-flight checklist">
 </picture>
 
-### 体感调节
+### Motion
 
-用示意图说明手腕动作和光标方向；每个滑块都附有说明，小竖线标出默认值。
+A diagram explains how wrist movements map to the cursor. Every slider has a description, and a tick marks its default value.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-motion-dark.png">
-  <img src="docs/assets/screenshots/settings-motion.png" alt="设置窗口的体感调节页：方向示意图、反向开关和五个手感滑块">
+  <img src="docs/assets/screenshots/settings-motion.png" alt="Motion page: direction diagram, invert switches and five feel sliders">
 </picture>
 
-### 通用
+### General
 
-登录时启动、闲置自动休眠、系统权限状态、恢复全部默认设置和版本信息。
+Launch at login, idle sleep, permission status, reset to defaults, and version information.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/settings-general-dark.png">
-  <img src="docs/assets/screenshots/settings-general.png" alt="设置窗口的通用页：启动与省电、系统权限、重置和关于">
+  <img src="docs/assets/screenshots/settings-general.png" alt="General page: launch and power saving, system permissions, reset and about">
 </picture>
 
-## 默认按键映射
+## Default button mapping
 
-| Joy-Con 操作 | 普通层 | 按住 SL 后 |
+| Joy-Con input | Normal layer | While holding SL |
 | --- | --- | --- |
-| R | 单次 Fn（系统语音输入） | 同普通层 |
-| SR | Return / Enter | Shift + Enter（换行但不发送） |
-| A | Esc | Control + C（强制中断） |
-| B | 鼠标右键 | 同普通层 |
-| X | 删除；按住连续删除 | 同普通层 |
-| Y | 鼠标左键；按住可拖动 | 同普通层 |
-| + | Command + Tab（切换应用） | 同普通层 |
-| Home | 打开状态面板 | 连点轮换 `/ → @ → $ → !` |
-| 摇杆按下 | Tab | Shift + Tab |
-| 摇杆上下 | 滚动 | 上、下方向键 |
-| 摇杆左右 | 左、右方向键 | 左、右方向键 |
-| ZR | 按住开启体感鼠标 | ZR + SL 为精准体感 |
+| R | Single Fn press (system dictation) | Same as normal |
+| SR | Return / Enter | Shift + Enter (newline without sending) |
+| A | Esc | Control + C (force interrupt) |
+| B | Right click | Same as normal |
+| X | Delete; hold to repeat | Same as normal |
+| Y | Left click; hold to drag | Same as normal |
+| + | Command + Tab (switch apps) | Same as normal |
+| Home | Open the status panel | Tap repeatedly to cycle `/ → @ → $ → !` |
+| Stick press | Tab | Shift + Tab |
+| Stick up/down | Scroll | Up / down arrow keys |
+| Stick left/right | Left / right arrow keys | Left / right arrow keys |
+| ZR | Hold for motion mouse | ZR + SL for precision mode |
 
-ZR + SL 的精准体感组合优先于 SL Agent 副层，不会误触发副层按键动作。
+The ZR + SL precision combo takes priority over the SL Agent layer, so it never triggers layer actions by accident.
 
-## 系统要求
+## Requirements
 
-- macOS 14 或更高版本；下载的安装包仅支持 Apple 芯片的 Mac，Intel 机型请从源码构建；
-- 原版 Nintendo Switch Joy-Con (R)；
-- 蓝牙连接；
-- “辅助功能”权限；若系统阻止 HID 输入，再授予“输入监控”权限；
-- 使用语音输入时，需要额外准备麦克风。
+- macOS 14 or later. The downloadable DMG supports Apple silicon only; on Intel Macs, build from source;
+- An original Nintendo Switch Joy-Con (R);
+- A Bluetooth connection;
+- The Accessibility permission, plus Input Monitoring if macOS blocks HID input;
+- A microphone if you want voice input.
 
-## 首次使用
+## Getting started
 
-1. 在 macOS「系统设置 → 蓝牙」中配对 `Joy-Con (R)`；
-2. 按照提示授予 App“辅助功能”权限；
-3. 连接成功后把 Joy-Con 静置约一秒，等待零点校准完成；
-4. 按住 ZR，轻轻转动手腕开始控制光标。
+1. Pair `Joy-Con (R)` in macOS System Settings → Bluetooth;
+2. Grant the app the Accessibility permission when prompted;
+3. Once connected, leave the Joy-Con still for about a second while it calibrates its zero point;
+4. Hold ZR and gently turn your wrist to move the cursor.
 
-授权后仍无响应时，可点击错误提示中的「重新连接」，或关闭再开启控制台右上角的遥控开关。
-打开控制台时也会重试此前打开失败的设备连接。如果 macOS 提示必须退出并重新打开，
-请先退出 App，再从安装位置启动。
+If nothing happens after granting permissions, click Reconnect (重新连接) in the error message, or turn the
+remote toggle in the panel's top-right corner off and on again. Opening the panel also retries any device
+that failed to open earlier. If macOS says the app must quit and reopen, quit it and launch it again from
+where it is installed.
 
-“登录时启动”在设置窗口的「通用」页；若等待系统批准，页面会显示提示，取消勾选会撤销待批准的注册。
+Launch at login (登录时启动) is on the General (通用) page of the settings window. If it is waiting for system
+approval, the page says so; turning it off withdraws the pending registration.
 
-同一页可以设置“闲置自动休眠”（关闭 / 10 分钟 / 30 分钟 / 1 小时），也可以点「立即休眠」。
-手柄休眠后菜单栏图标变为月亮，按 Joy-Con 任意键即可唤醒。
+The same page sets idle sleep, Idle auto-sleep (闲置自动休眠): Off / 10 minutes / 30 minutes / 1 hour.
+There is also a Sleep now (立即休眠) button. While the controller sleeps, the menu bar icon turns into a
+moon; press any button on the Joy-Con to wake it.
 
-## 从源码构建
+## Build from source
 
-普通用户直接[下载安装](#下载安装)即可，本节面向开发者。
+Most people should just [download the DMG](#download); this section is for developers.
 
-从源码构建需要 **完整 Xcode 16 或更新版本（包含 Swift 6+ 和 macOS SDK）**。
-请安装与本机 macOS 兼容的 Xcode，并先打开一次完成组件安装及许可确认。
-仅安装 `xcode-select --install` 提供的命令行工具不够：部分 SwiftUI SDK 需要完整
-Xcode 中的编译插件。安装后可检查当前工具：
+Building from source needs **the full Xcode 16 or later (with Swift 6+ and the macOS SDK)**.
+Install an Xcode version compatible with your macOS, then open it once to finish installing components
+and accept the license. The Command Line Tools from `xcode-select --install` are not enough: some SwiftUI
+SDKs need compiler plugins that only ship with the full Xcode. Check the current tools with:
 
 ```bash
 xcode-select -p
 xcrun swift --version
 ```
 
-脚本优先使用当前选中的完整 Xcode；若仅选中了命令行工具，会通过 Spotlight
-查找已安装的 Xcode。也支持通过 `DEVELOPER_DIR` 指定其他 Xcode，
-例如 `DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer" ./scripts/build-app.sh`。
-若 Swift 版本不足，请先更新开发工具。
-若 Spotlight 未能找到 Xcode，请手动指定上述路径。
+The scripts prefer the currently selected full Xcode. If only the Command Line Tools are selected, they
+look for an installed Xcode through Spotlight. You can also point `DEVELOPER_DIR` at another Xcode,
+for example `DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer" ./scripts/build-app.sh`.
+Update your developer tools if the Swift version is too old, and set the path by hand if Spotlight
+cannot find Xcode.
 
 ```bash
 git clone https://github.com/hunduncn/joycon-vibe-remote.git
@@ -194,78 +211,81 @@ cd joycon-vibe-remote
 open "/Applications/Joy-Con Vibe Remote.app"
 ```
 
-构建脚本会生成并安装：
+The build script produces and installs:
 
 ```text
 /Applications/Joy-Con Vibe Remote.app
 ```
 
-若当前账户不能写入 `/Applications`，可安装到个人目录，无需使用 `sudo`：
+If your account cannot write to `/Applications`, install into your home folder instead, without `sudo`:
 
 ```bash
 ./scripts/build-app.sh --install --install-dir "$HOME/Applications"
 open "$HOME/Applications/Joy-Con Vibe Remote.app"
 ```
 
-升级时，脚本先复制并校验新版，再正常退出安装目录中的旧 App 并替换。
-若退出失败会中止；若替换失败会恢复旧版。成功升级后的旧版备份保留在安装目录的
-`.joycon-vibe-remote-install.*` 隐藏目录中，终端会显示具体路径。确认新版可用后可自行删除备份。
-第三方声明也包含在生成 App 的 `Contents/Resources/THIRD_PARTY_NOTICES.md` 中。
+When upgrading, the script first copies and checks the new build, then quits the old app in the install
+folder and replaces it. It stops if the old app fails to quit, and restores the old version if the
+replacement fails. After a successful upgrade, the old version is kept in a hidden
+`.joycon-vibe-remote-install.*` folder in the install location, and Terminal prints its path. Delete
+it yourself once the new version works. The third-party notices are also bundled in the app at
+`Contents/Resources/THIRD_PARTY_NOTICES.md`.
 
-打包发布用的 DMG 安装包：
+To package the DMG for a release:
 
 ```bash
 ./scripts/make-dmg.sh
 ```
 
-生成的文件位于 `.build/dmg/Joy-Con-Vibe-Remote-<版本号>.dmg`，版本号取自 `Resources/Info.plist`。
-脚本会在项目内的 `.build/dmg-tools` 安装 dmgbuild 排布安装窗口，并通过访达设置背景图：
-打包时访达窗口会短暂弹出，首次运行可能需要允许终端控制访达。
+The output is `.build/dmg/Joy-Con-Vibe-Remote-<version>.dmg`, with the version taken from `Resources/Info.plist`.
+The script installs dmgbuild into the project-local `.build/dmg-tools` to lay out the installer window, and
+sets the background image through Finder. A Finder window briefly appears while it packages, and the first
+run may ask you to allow Terminal to control Finder.
 
-## macOS 听写设置
+## macOS Dictation setup
 
-R 键只负责向 macOS 发送一次 Fn，不会直接采集声音。要把它作为语音键，请在：
-
-```text
-系统设置 → 键盘 → 听写 → 快捷键
-```
-
-将听写方式设置为单按一次 Fn 可触发或关闭。不同 macOS 配置可能使用不同快捷键，
-请以本机设置为准。
-
-## 体感操作建议
-
-- 把 ZR 当作鼠标的“离合器”：需要移动时按住，到达目标后松开；
-- 按下 ZR 的瞬间保持手腕稳定，避免快速甩动；
-- 改变握姿后，松开再重新按住 ZR，让系统重新锚定方向；
-- 小幅抖动可以提高“稳定度”，横向移动不够快可以调整“水平倍率”；
-- 调节参数时一次只改一项，更容易找到适合自己的手感。
-
-## 项目结构
+The R button only sends a single Fn press to macOS; it does not record audio itself. To use it as a voice key, go to:
 
 ```text
-Sources/JoyConVibeCore/       HID 数据、按键映射与体感算法
-Sources/JoyConVibeRemote/     macOS 菜单栏 App 与系统事件输出
-Tests/                        解析、映射、体感和界面回归测试
-docs/manual/                  响应式网页版说明书
-docs/assets/                  手绘按键图等文档素材
-scripts/build-app.sh          Release 构建与安装脚本
-scripts/make-dmg.sh           DMG 安装包打包脚本
+System Settings → Keyboard → Dictation → Shortcut
 ```
 
-## 开发与测试
+and set dictation to start or stop with a single press of Fn. Shortcuts vary between macOS setups,
+so follow what your Mac shows.
+
+## Motion tips
+
+- Treat ZR as the mouse's clutch: hold it to move, release it once you reach the target;
+- Keep your wrist steady at the moment you press ZR, and avoid flicking;
+- After changing your grip, release and press ZR again to re-anchor the direction;
+- Raise Stability (稳定度) if the cursor jitters, and adjust Horizontal multiplier (水平倍率) if sideways movement feels slow;
+- Change one setting at a time; it is easier to find a feel that suits you.
+
+## Project structure
+
+```text
+Sources/JoyConVibeCore/       HID data, button mapping and motion algorithms
+Sources/JoyConVibeRemote/     macOS menu bar app and system event output
+Tests/                        Parsing, mapping, motion and UI regression tests
+docs/manual/                  Responsive web manual
+docs/assets/                  Hand-drawn button guide and other doc assets
+scripts/build-app.sh          Release build and install script
+scripts/make-dmg.sh           DMG packaging script
+```
+
+## Development and testing
 
 ```bash
 DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer" xcrun swift test
 python3 scripts/test-install.py
 ```
 
-也可以在 Xcode 中直接打开 `Package.swift`。核心解析、体感算法和按键映射与
-AppKit/SwiftUI 界面分离；自动化测试不会发送真实系统输入事件。
+You can also open `Package.swift` directly in Xcode. HID parsing, motion algorithms and button mapping
+are separate from the AppKit/SwiftUI interface, and the automated tests never send real system input events.
 
-## 第三方声明
+## Third-party notices
 
-第三方代码与算法来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+Sources of third-party code and algorithms are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Joy-Con 与 Nintendo Switch 是 Nintendo 的商标。本项目是独立开发工具，
-与 Nintendo、OpenAI 或 Anthropic 无隶属或授权关系。
+Joy-Con and Nintendo Switch are trademarks of Nintendo. This project is an independent developer tool
+and is not affiliated with or endorsed by Nintendo, OpenAI or Anthropic.
