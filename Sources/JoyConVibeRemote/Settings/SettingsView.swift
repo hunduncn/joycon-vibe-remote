@@ -90,6 +90,10 @@ struct SettingsView: View {
                 }
             }
         }
+        // The title bar is transparent and the sidebar already leaves room
+        // for the window buttons, so content runs under it instead of
+        // losing that height at the bottom.
+        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: Self.minimumSize.width, minHeight: Self.minimumSize.height)
         .background(Color(nsColor: .windowBackgroundColor))
     }

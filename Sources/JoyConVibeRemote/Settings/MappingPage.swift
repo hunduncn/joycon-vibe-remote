@@ -70,6 +70,10 @@ struct MappingPage: View {
             editingSide = model.activeSide ?? .right
             highlight.isActive = settings.highlightPressedButton
         }
+        // Picking up the other controller brings its mapping up.
+        .onChange(of: model.activeSide) { _, active in
+            if let active { editingSide = active }
+        }
         .onDisappear { highlight.isActive = false }
         .onChange(of: settings.highlightPressedButton) { _, enabled in highlight.isActive = enabled }
     }
