@@ -79,11 +79,7 @@ struct StatusMenuView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: model.status.symbolName)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(model.status.color)
-                .frame(width: 36, height: 36)
-                .background(model.status.color.opacity(0.14), in: Circle())
+            StatusIcon(model: model, diameter: 36, symbolSize: 16)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.status.title).font(.headline)

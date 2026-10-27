@@ -177,7 +177,7 @@ struct JoyConArtwork: View {
     var showsLabels = true
 
     // Line-art style: pink outlines on a pale pink shell with white keys.
-    private static let ink = Color(red: 0.88, green: 0.32, blue: 0.56)
+    static let ink = Color(red: 0.88, green: 0.32, blue: 0.56)
     private static let shell = Color(red: 0.99, green: 0.93, blue: 0.95)
     private static let key = Color.white
     private static let soft = Color(red: 0.96, green: 0.70, blue: 0.80)
@@ -281,7 +281,7 @@ struct JoyConArtwork: View {
                 let labelFont = Font.system(size: 9, weight: .heavy, design: .rounded)
                 context.draw(Text(side.keyLabel(.zr)).font(labelFont).foregroundColor(.white), at: JoyConGeometry.labelPoint(of: .zr, side: side))
                 context.draw(
-                    Text(side.keyLabel(.r)).font(labelFont).foregroundColor(isOn(.r) ? .white : Self.ink),
+                    Text(side.keyLabel(.r)).font(labelFont).foregroundColor(.white),
                     at: JoyConGeometry.labelPoint(of: .r, side: side)
                 )
             }
@@ -327,6 +327,58 @@ struct JoyConArtwork: View {
         path.addArc(center: CGPoint(x: r.minX + lr, y: r.maxY - lr), radius: lr, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
         path.addLine(to: CGPoint(x: r.minX, y: r.minY + lr))
         path.addArc(center: CGPoint(x: r.minX + lr, y: r.minY + lr), radius: lr, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// A small solid Joy-Con, sized like an SF Symbol, for status badges: the
+/// shell with the stick and buttons cut out. The left one is the mirror
+/// image with its stick above the buttons.
+struct JoyConGlyph: View {
+    let side: JoyConSide
+
+    private static let size = CGSize(width: 12, height: 22)
+
+    var body: some View {
+        Canvas { context, canvasSize in
+            let scale = min(canvasSize.width / Self.size.width, canvasSize.height / Self.size.height)
+            context.translateBy(
+                x: (canvasSize.width - Self.size.width * scale) / 2,
+                y: (canvasSize.height - Self.size.height * scale) / 2
+            )
+            context.scaleBy(x: scale, y: scale)
+            if side == .left {
+                context.concatenate(CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: Self.size.width, ty: 0))
+            }
+            var path = Self.shell()
+            // Right controller: buttons on top, stick below. Left: swapped.
+            let buttons = CGPoint(x: 6.6, y: side == .right ? 6.2 : 13)
+            let stick = CGPoint(x: 6.2, y: side == .right ? 13 : 6.2)
+            path.addEllipse(in: CGRect(x: stick.x - 2.6, y: stick.y - 2.6, width: 5.2, height: 5.2))
+            for (dx, dy) in [(0.0, -2.0), (2.0, 0.0), (0.0, 2.0), (-2.0, 0.0)] {
+                path.addEllipse(in: CGRect(x: buttons.x + dx - 0.85, y: buttons.y + dy - 0.85, width: 1.7, height: 1.7))
+            }
+            context.fill(path, with: .foreground, style: FillStyle(eoFill: true))
+        }
+        .aspectRatio(Self.size, contentMode: .fit)
+    }
+
+    private static func shell() -> Path {
+        let rect = CGRect(origin: .zero, size: size)
+        let top: CGFloat = 6
+        let bottom: CGFloat = 5
+        let inner: CGFloat = 1.5
+        var path = Path()
+        path.move(to: CGPoint(x: inner, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX - top, y: 0))
+        path.addArc(center: CGPoint(x: rect.maxX - top, y: top), radius: top, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bottom))
+        path.addArc(center: CGPoint(x: rect.maxX - bottom, y: rect.maxY - bottom), radius: bottom, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+        path.addLine(to: CGPoint(x: inner, y: rect.maxY))
+        path.addArc(center: CGPoint(x: inner, y: rect.maxY - inner), radius: inner, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        path.addLine(to: CGPoint(x: 0, y: inner))
+        path.addArc(center: CGPoint(x: inner, y: inner), radius: inner, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
         path.closeSubpath()
         return path
     }

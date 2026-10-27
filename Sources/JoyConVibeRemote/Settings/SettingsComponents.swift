@@ -296,6 +296,31 @@ extension RemoteStatus {
     }
 }
 
+/// The status badge. While a controller is simply connected it shows that
+/// controller, left or right, instead of a generic gamepad.
+struct StatusIcon: View {
+    @ObservedObject var model: AppModel
+    let diameter: CGFloat
+    let symbolSize: CGFloat
+
+    var body: some View {
+        Group {
+            if model.status == .connected, let side = model.activeSide {
+                JoyConGlyph(side: side)
+                    .frame(height: diameter * 0.56)
+                    .foregroundStyle(model.status.color)
+                    .accessibilityLabel(side == .right ? "右手 Joy-Con 已连接" : "左手 Joy-Con 已连接")
+            } else {
+                Image(systemName: model.status.symbolName)
+                    .font(.system(size: symbolSize, weight: .medium))
+                    .foregroundStyle(model.status.color)
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .background(model.status.color.opacity(0.14), in: Circle())
+    }
+}
+
 extension AppModel {
     var statusDetail: String {
         switch status {

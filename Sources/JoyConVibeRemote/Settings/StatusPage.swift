@@ -33,11 +33,7 @@ struct StatusPage: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
-                        Image(systemName: model.status.symbolName)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(model.status.color)
-                            .frame(width: 34, height: 34)
-                            .background(model.status.color.opacity(0.14), in: Circle())
+                        StatusIcon(model: model, diameter: 34, symbolSize: 15)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(model.status.title).font(.system(size: 17, weight: .bold))
                             Text(model.statusDetail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)

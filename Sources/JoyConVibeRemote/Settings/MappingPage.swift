@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import JoyConVibeCore
 
@@ -153,6 +154,14 @@ private struct LeaderLines: View {
     let side: JoyConSide
     let highlighted: JoyConPart?
 
+    /// Gray disappears over the pale shell in dark mode, so lines there take
+    /// the drawing's own ink. Resolved per appearance when drawn.
+    private let restingColor = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(JoyConArtwork.ink).withAlphaComponent(0.75)
+            : NSColor.secondaryLabelColor.withAlphaComponent(0.45)
+    })
+
     var body: some View {
         if let artworkAnchor = anchors.artwork {
             let artwork = proxy[artworkAnchor]
@@ -190,11 +199,11 @@ private struct LeaderLines: View {
             control1: CGPoint(x: start.x + bend, y: start.y),
             control2: CGPoint(x: end.x - bend, y: end.y)
         )
-        let color = emphasized ? Color.accentColor : Color.secondary.opacity(0.45)
+        let color = emphasized ? Color.accentColor : restingColor
         context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: emphasized ? 2 : 1.2, lineCap: .round))
 
         let dot = Path(ellipseIn: CGRect(x: start.x - 3, y: start.y - 3, width: 6, height: 6))
-        context.fill(dot, with: .color(emphasized ? Color.accentColor : Color.secondary.opacity(0.7)))
+        context.fill(dot, with: .color(emphasized ? Color.accentColor : restingColor))
 
         if emphasized {
             let direction: CGFloat = toLeft ? 1 : -1
