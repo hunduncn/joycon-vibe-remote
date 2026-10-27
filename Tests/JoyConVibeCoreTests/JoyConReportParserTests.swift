@@ -87,6 +87,103 @@ final class JoyConReportParserTests: XCTestCase {
         XCTAssertEqual(frame.batteryLevel, 4)
     }
 
+    func testLeftButtonsMapToLogicalButtons() throws {
+        var payload = centeredPayload()
+        payload[4] = 0x01 | 0x02 | 0x04 | 0x08 | 0x40 | 0x80
+        payload[3] = 0x01 | 0x08 | 0x20
+        let frame = try XCTUnwrap(leftFrame(payload))
+        XCTAssertEqual(frame.buttons, [.b, .x, .y, .a, .r, .zr, .plus, .stick, .home])
+    }
+
+    func testLeftSideButtonsAreSwappedByPosition() throws {
+        var payload = centeredPayload()
+        payload[4] = 0x10 // Physical SR, at the bottom of the rail.
+        XCTAssertEqual(try XCTUnwrap(leftFrame(payload)).buttons, [.sl])
+        payload[4] = 0x20 // Physical SL, at the top of the rail.
+        XCTAssertEqual(try XCTUnwrap(leftFrame(payload)).buttons, [.sr])
+    }
+
+    func testLeftParserIgnoresRightButtonBytes() throws {
+        var payload = centeredPayload()
+        payload[2] = 0xFF
+        payload[3] = 0x02 | 0x04 | 0x10
+        XCTAssertEqual(try XCTUnwrap(leftFrame(payload)).buttons, [])
+    }
+
+    func testLeftStickIsReadFromItsOwnBytes() throws {
+        var payload = centeredPayload()
+        putStick(x: 2048 + 1700, y: 2048, in: &payload, at: 5)
+        let frame = try XCTUnwrap(leftFrame(payload))
+        XCTAssertEqual(frame.stick.x, 1, accuracy: 0.001)
+        XCTAssertEqual(frame.stick.y, 0, accuracy: 0.001)
+    }
+
+    func testLeftStickCalibrationUsesLeftByteOrder() throws {
+        let calibration = packTwelveBit([300, 400, 2000, 2100, 500, 600])
+        var left = JoyConReportParser(side: .left)
+        _ = left.decode(reportID: 0x21, bytes: makeSPIReply(address: 0x603D, data: calibration))
+        XCTAssertEqual(
+            left.stickCalibration,
+            StickCalibration(
+                centerX: 2000, centerY: 2100,
+                negativeRangeX: 500, positiveRangeX: 300,
+                negativeRangeY: 600, positiveRangeY: 400
+            )
+        )
+        var payload = centeredPayload()
+        putStick(x: 2300, y: 2100, in: &payload, at: 5)
+        let frame = try XCTUnwrap(left.decode(reportID: 0x30, bytes: payload)?.frame)
+        XCTAssertEqual(frame.stick.x, 1, accuracy: 0.001)
+
+        var right = JoyConReportParser()
+        _ = right.decode(reportID: 0x21, bytes: makeSPIReply(address: 0x603D, data: calibration))
+        XCTAssertEqual(right.stickCalibration, .fallback)
+    }
+
+    func testLeftIMUIsExpressedInRightHandAxes() throws {
+        var payload = centeredPayload()
+        putInt16(10, in: &payload, at: 12)
+        putInt16(20, in: &payload, at: 14)
+        putInt16(30, in: &payload, at: 16)
+        putInt16(100, in: &payload, at: 18)
+        putInt16(200, in: &payload, at: 20)
+        putInt16(300, in: &payload, at: 22)
+        var right = JoyConReportParser()
+        let rightSample = try XCTUnwrap(right.decode(reportID: 0x30, bytes: payload)?.frame?.gyroSamples.first)
+        let leftSample = try XCTUnwrap(leftFrame(payload)?.gyroSamples.first)
+        let r = rightSample.degreesPerSecond
+        XCTAssertEqual(leftSample.degreesPerSecond, Vector3(x: r.x, y: -r.y, z: -r.z))
+        let a = rightSample.acceleration
+        XCTAssertEqual(leftSample.acceleration, Vector3(x: a.x, y: -a.y, z: -a.z))
+    }
+
+    private func centeredPayload() -> [UInt8] {
+        var payload = [UInt8](repeating: 0, count: 48)
+        putStick(x: 2048, y: 2048, in: &payload, at: 5)
+        putStick(x: 2048, y: 2048, in: &payload, at: 8)
+        return payload
+    }
+
+    private func leftFrame(_ payload: [UInt8]) -> JoyConInputFrame? {
+        var parser = JoyConReportParser(side: .left)
+        return parser.decode(reportID: 0x30, bytes: payload)?.frame
+    }
+
+    private func putStick(x: UInt16, y: UInt16, in data: inout [UInt8], at offset: Int) {
+        data[offset] = UInt8(x & 0xFF)
+        data[offset + 1] = UInt8((x >> 8) & 0x0F) | UInt8((y & 0x0F) << 4)
+        data[offset + 2] = UInt8(y >> 4)
+    }
+
+    private func packTwelveBit(_ values: [UInt16]) -> [UInt8] {
+        var bytes: [UInt8] = []
+        for pair in stride(from: 0, to: values.count, by: 2) {
+            let a = values[pair], b = values[pair + 1]
+            bytes += [UInt8(a & 0xFF), UInt8((a >> 8) & 0x0F) | UInt8((b & 0x0F) << 4), UInt8(b >> 4)]
+        }
+        return bytes
+    }
+
     private func makeSPIReply(address: UInt32, data: [UInt8]) -> [UInt8] {
         var payload = [UInt8](repeating: 0, count: 19 + data.count)
         payload[12] = 0x90

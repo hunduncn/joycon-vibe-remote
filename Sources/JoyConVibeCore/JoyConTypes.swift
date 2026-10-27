@@ -14,6 +14,34 @@ public enum JoyConButton: String, CaseIterable, Hashable, Sendable {
     case stick
 }
 
+/// Which Joy-Con of the pair a report came from.
+public enum JoyConSide: String, CaseIterable, Hashable, Sendable {
+    case right
+    case left
+
+    public var productID: Int {
+        switch self {
+        case .right: return 0x2007
+        case .left: return 0x2006
+        }
+    }
+
+    /// SPI flash address of the factory stick calibration.
+    public var stickCalibrationAddress: UInt32 {
+        switch self {
+        case .right: return 0x6046
+        case .left: return 0x603D
+        }
+    }
+
+    public var defaultName: String {
+        switch self {
+        case .right: return "Joy-Con (R)"
+        case .left: return "Joy-Con (L)"
+        }
+    }
+}
+
 public struct Vector3: Equatable, Sendable {
     public var x: Double
     public var y: Double

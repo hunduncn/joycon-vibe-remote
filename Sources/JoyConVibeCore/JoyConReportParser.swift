@@ -1,13 +1,20 @@
 import Foundation
 
+/// Decodes reports from either Joy-Con. A left controller's buttons come out
+/// as the logical button in the mirrored position on the right controller,
+/// and its IMU in the right controller's axes, so everything downstream
+/// handles both sides the same way.
 public struct JoyConReportParser: Sendable {
+    public let side: JoyConSide
     public private(set) var gyroCalibration: GyroCalibration
     public private(set) var stickCalibration: StickCalibration
 
     public init(
+        side: JoyConSide = .right,
         gyroCalibration: GyroCalibration = .fallback,
         stickCalibration: StickCalibration = .fallback
     ) {
+        self.side = side
         self.gyroCalibration = gyroCalibration
         self.stickCalibration = stickCalibration
     }
@@ -40,9 +47,12 @@ public struct JoyConReportParser: Sendable {
             if let calibration = Self.parseGyroCalibration(reply.data) {
                 gyroCalibration = calibration
             }
-        case 0x6046:
-            if let calibration = Self.parseRightStickCalibration(reply.data) {
-                stickCalibration = calibration
+        case side.stickCalibrationAddress:
+            let parsed = side == .right
+                ? Self.parseRightStickCalibration(reply.data)
+                : Self.parseLeftStickCalibration(reply.data)
+            if let parsed {
+                stickCalibration = parsed
             }
         default:
             break
@@ -71,23 +81,9 @@ public struct JoyConReportParser: Sendable {
         let data = Array(payload)
         guard data.count >= 11 else { return nil }
 
-        let rightButtons = data[2]
-        let sharedButtons = data[3]
-        var buttons = Set<JoyConButton>()
-
-        Self.insert(.y, if: rightButtons & 0x01 != 0, into: &buttons)
-        Self.insert(.x, if: rightButtons & 0x02 != 0, into: &buttons)
-        Self.insert(.b, if: rightButtons & 0x04 != 0, into: &buttons)
-        Self.insert(.a, if: rightButtons & 0x08 != 0, into: &buttons)
-        Self.insert(.sr, if: rightButtons & 0x10 != 0, into: &buttons)
-        Self.insert(.sl, if: rightButtons & 0x20 != 0, into: &buttons)
-        Self.insert(.r, if: rightButtons & 0x40 != 0, into: &buttons)
-        Self.insert(.zr, if: rightButtons & 0x80 != 0, into: &buttons)
-        Self.insert(.plus, if: sharedButtons & 0x02 != 0, into: &buttons)
-        Self.insert(.stick, if: sharedButtons & 0x04 != 0, into: &buttons)
-        Self.insert(.home, if: sharedButtons & 0x10 != 0, into: &buttons)
-
-        let rawStick = Self.decodeStick(data[8], data[9], data[10])
+        let buttons = side == .right ? Self.parseRightButtons(data) : Self.parseLeftButtons(data)
+        let stickOffset = side == .right ? 8 : 5
+        let rawStick = Self.decodeStick(data[stickOffset], data[stickOffset + 1], data[stickOffset + 2])
         let stick = normalizedStick(rawStick)
 
         var gyroSamples: [GyroSample] = []
@@ -100,19 +96,19 @@ public struct JoyConReportParser: Sendable {
                 let gx = Self.int16(data, offset + 6)
                 let gy = Self.int16(data, offset + 8)
                 let gz = Self.int16(data, offset + 10)
+                let rate = Vector3(
+                    x: (Double(gx) - gyroCalibration.offset.x) * gyroCalibration.coefficient.x,
+                    y: (Double(gy) - gyroCalibration.offset.y) * gyroCalibration.coefficient.y,
+                    z: (Double(gz) - gyroCalibration.offset.z) * gyroCalibration.coefficient.z
+                )
+                let acceleration = Vector3(x: Double(x), y: Double(y), z: Double(z))
                 gyroSamples.append(
-                    GyroSample(
-                        degreesPerSecond: Vector3(
-                            x: (Double(gx) - gyroCalibration.offset.x) * gyroCalibration.coefficient.x,
-                            y: (Double(gy) - gyroCalibration.offset.y) * gyroCalibration.coefficient.y,
-                            z: (Double(gz) - gyroCalibration.offset.z) * gyroCalibration.coefficient.z
-                        ),
-                        acceleration: Vector3(
-                            x: Double(x),
-                            y: Double(y),
-                            z: Double(z)
+                    side == .right
+                        ? GyroSample(degreesPerSecond: rate, acceleration: acceleration)
+                        : GyroSample(
+                            degreesPerSecond: Self.normalizeLeftAxes(rate),
+                            acceleration: Self.normalizeLeftAxes(acceleration)
                         )
-                    )
                 )
             }
         }
@@ -134,6 +130,51 @@ public struct JoyConReportParser: Sendable {
             batteryLevel: batteryLevel,
             isCharging: batteryByte & 0x10 != 0
         )
+    }
+
+    private static func parseRightButtons(_ data: [UInt8]) -> Set<JoyConButton> {
+        let rightButtons = data[2]
+        let sharedButtons = data[3]
+        var buttons = Set<JoyConButton>()
+        insert(.y, if: rightButtons & 0x01 != 0, into: &buttons)
+        insert(.x, if: rightButtons & 0x02 != 0, into: &buttons)
+        insert(.b, if: rightButtons & 0x04 != 0, into: &buttons)
+        insert(.a, if: rightButtons & 0x08 != 0, into: &buttons)
+        insert(.sr, if: rightButtons & 0x10 != 0, into: &buttons)
+        insert(.sl, if: rightButtons & 0x20 != 0, into: &buttons)
+        insert(.r, if: rightButtons & 0x40 != 0, into: &buttons)
+        insert(.zr, if: rightButtons & 0x80 != 0, into: &buttons)
+        insert(.plus, if: sharedButtons & 0x02 != 0, into: &buttons)
+        insert(.stick, if: sharedButtons & 0x04 != 0, into: &buttons)
+        insert(.home, if: sharedButtons & 0x10 != 0, into: &buttons)
+        return buttons
+    }
+
+    /// Each left button reports as the right button in the mirrored spot.
+    /// The side buttons swap: held upright, the right controller's SL sits
+    /// at the bottom of the rail, where the left controller has SR.
+    private static func parseLeftButtons(_ data: [UInt8]) -> Set<JoyConButton> {
+        let leftButtons = data[4]
+        let sharedButtons = data[3]
+        var buttons = Set<JoyConButton>()
+        insert(.b, if: leftButtons & 0x01 != 0, into: &buttons)
+        insert(.x, if: leftButtons & 0x02 != 0, into: &buttons)
+        insert(.y, if: leftButtons & 0x04 != 0, into: &buttons)
+        insert(.a, if: leftButtons & 0x08 != 0, into: &buttons)
+        insert(.sl, if: leftButtons & 0x10 != 0, into: &buttons)
+        insert(.sr, if: leftButtons & 0x20 != 0, into: &buttons)
+        insert(.r, if: leftButtons & 0x40 != 0, into: &buttons)
+        insert(.zr, if: leftButtons & 0x80 != 0, into: &buttons)
+        insert(.plus, if: sharedButtons & 0x01 != 0, into: &buttons)
+        insert(.stick, if: sharedButtons & 0x08 != 0, into: &buttons)
+        insert(.home, if: sharedButtons & 0x20 != 0, into: &buttons)
+        return buttons
+    }
+
+    /// The left controller's IMU is the right one turned half a turn about
+    /// its long axis, so its y and z point the other way.
+    private static func normalizeLeftAxes(_ vector: Vector3) -> Vector3 {
+        Vector3(x: vector.x, y: -vector.y, z: -vector.z)
     }
 
     private func parseSPIReply(payload: ArraySlice<UInt8>) -> SPIFlashReply? {
@@ -218,6 +259,27 @@ public struct JoyConReportParser: Sendable {
             positiveRangeX: Double(value4),
             negativeRangeY: Double(value3),
             positiveRangeY: Double(value5)
+        )
+    }
+
+    /// The left stick stores the same six values as the right one, in the
+    /// order: above center, center, below center.
+    private static func parseLeftStickCalibration(_ data: [UInt8]) -> StickCalibration? {
+        guard data.count >= 9 else { return nil }
+        let value0 = UInt16(data[0]) | ((UInt16(data[1]) & 0x0F) << 8)
+        let value1 = (UInt16(data[1]) >> 4) | (UInt16(data[2]) << 4)
+        let value2 = UInt16(data[3]) | ((UInt16(data[4]) & 0x0F) << 8)
+        let value3 = (UInt16(data[4]) >> 4) | (UInt16(data[5]) << 4)
+        let value4 = UInt16(data[6]) | ((UInt16(data[7]) & 0x0F) << 8)
+        let value5 = (UInt16(data[7]) >> 4) | (UInt16(data[8]) << 4)
+
+        return StickCalibration(
+            centerX: Double(value2),
+            centerY: Double(value3),
+            negativeRangeX: Double(value4),
+            positiveRangeX: Double(value0),
+            negativeRangeY: Double(value5),
+            positiveRangeY: Double(value1)
         )
     }
 
